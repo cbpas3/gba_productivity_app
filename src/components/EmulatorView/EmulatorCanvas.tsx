@@ -141,6 +141,9 @@ export const EmulatorCanvas = forwardRef<HTMLCanvasElement>((_, ref) => {
         }
 
         @media (max-width: 768px) {
+          .emulator-canvas {
+            width: 100%;
+          }
           .emulator-canvas__screen-wrap,
           .emulator-canvas__canvas {
             width: 100%;

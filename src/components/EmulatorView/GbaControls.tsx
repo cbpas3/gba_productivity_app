@@ -25,12 +25,23 @@ function ControlButton({ button, label, className, 'aria-label': ariaLabel }: Co
     emulatorService.releaseButton(button);
   }
 
+  // Explicitly prevent default on touch events to stop Safari from scrolling
+  function handleTouch(e: React.TouchEvent) {
+    // We only preventDefault here to stop the mobile browser scroll/zoom behavior.
+    // The actual button press logic is handled by PointerEvents above.
+    e.preventDefault();
+  }
+
   return (
     <button
       className={className}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerLeave}
+      onTouchStart={handleTouch}
+      onTouchEnd={handleTouch}
+      onTouchMove={handleTouch}
+      onTouchCancel={handleTouch}
       aria-label={ariaLabel}
       type="button"
     >
@@ -312,6 +323,18 @@ export function GbaControls() {
         @media (max-width: 768px) {
           .gba-controls {
             width: 100%;
+            padding: var(--space-2) var(--space-2) 40px var(--space-2);
+            position: relative;
+          }
+          .gba-controls__body {
+            justify-content: space-between;
+          }
+          .gba-controls__center {
+            position: absolute;
+            bottom: var(--space-2);
+            left: 50%;
+            transform: translateX(-50%);
+            margin-bottom: 0;
           }
         }
       `}</style>

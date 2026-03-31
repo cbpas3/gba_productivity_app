@@ -144,19 +144,26 @@ export function AppLayout() {
         @media (max-width: 768px) {
           .app-layout__main {
             flex-direction: column;
-            padding: var(--space-3);
-            gap: var(--space-3);
+            padding: var(--space-1);
+            gap: var(--space-2);
             max-height: none;
           }
 
-          .app-layout__left-panel,
+          .app-layout__emulator-wrap.card {
+            padding: var(--space-2);
+          }
+
           .app-layout__right-panel {
             flex: none;
             max-width: 100%;
             width: 100%;
+            order: -1; /* Move emulator to the top */
           }
 
           .app-layout__left-panel {
+            flex: none;
+            max-width: 100%;
+            width: 100%;
             max-height: none;
             overflow-y: visible;
             padding-right: 0;
