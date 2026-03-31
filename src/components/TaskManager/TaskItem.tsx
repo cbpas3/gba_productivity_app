@@ -9,10 +9,10 @@ const PRIORITY_COLORS: Record<TaskPriority, string> = {
 };
 
 const PRIORITY_REWARDS: Record<TaskPriority, string> = {
-  low:      'Heal',
-  medium:   '+500 EXP',
-  high:     'Rare Candy',
-  critical: 'Perfect IVs',
+  low:      '10% EXP',
+  medium:   '20% EXP',
+  high:     '50% EXP',
+  critical: '100% EXP',
 };
 
 const STATUS_LABEL: Record<Task['status'], string> = {

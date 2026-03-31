@@ -2,41 +2,45 @@ import type { Reward, RewardType } from '../../types/reward';
 import { useRewardStore } from '../../store/rewardStore';
 
 const REWARD_LABELS: Record<RewardType, string> = {
-  give_item:      'RARE CANDY',
-  add_experience: '+EXP',
-  boost_evs:      'EV BOOST',
-  set_ivs:        'PERFECT IVs',
-  heal_pokemon:   'HEAL',
-  teach_move:     'MOVE TUTOR',
+  give_item:              'RARE CANDY',
+  add_experience:         '+EXP',
+  add_experience_percent: '%EXP',
+  boost_evs:              'EV BOOST',
+  set_ivs:                'PERFECT IVs',
+  heal_pokemon:           'HEAL',
+  teach_move:             'MOVE TUTOR',
 };
 
 const REWARD_ICONS: Record<RewardType, string> = {
-  give_item:      '*',
-  add_experience: '+',
-  boost_evs:      '^',
-  set_ivs:        '!',
-  heal_pokemon:   '+',
-  teach_move:     '~',
+  give_item:              '*',
+  add_experience:         '+',
+  add_experience_percent: '%',
+  boost_evs:              '^',
+  set_ivs:                '!',
+  heal_pokemon:           '+',
+  teach_move:             '~',
 };
 
 const REWARD_COLORS: Record<RewardType, string> = {
-  give_item:      'var(--color-accent-yellow)',
-  add_experience: 'var(--color-accent-cyan)',
-  boost_evs:      'var(--color-accent-green)',
-  set_ivs:        'var(--color-priority-critical)',
-  heal_pokemon:   'var(--color-accent-green)',
-  teach_move:     'var(--color-purple-glow)',
+  give_item:              'var(--color-accent-yellow)',
+  add_experience:         'var(--color-accent-cyan)',
+  add_experience_percent: 'var(--color-accent-cyan)',
+  boost_evs:              'var(--color-accent-green)',
+  set_ivs:                'var(--color-priority-critical)',
+  heal_pokemon:           'var(--color-accent-green)',
+  teach_move:             'var(--color-purple-glow)',
 };
 
 function formatRewardDetail(reward: Reward): string {
   const { payload } = reward;
   switch (payload.kind) {
-    case 'item':       return `Item #${payload.itemId} -> Slot ${reward.targetSlot + 1}`;
-    case 'experience': return `+${payload.amount} EXP -> Slot ${reward.targetSlot + 1}`;
-    case 'evs':        return `${payload.stat.toUpperCase()} +${payload.amount} EV`;
-    case 'ivs':        return `IVs set -> Slot ${reward.targetSlot + 1}`;
-    case 'heal':       return `Healed -> Slot ${reward.targetSlot + 1}`;
-    case 'move':       return `Move #${payload.moveId} in slot ${payload.slot + 1}`;
+    case 'item':               return `Item #${payload.itemId} -> Slot ${reward.targetSlot + 1}`;
+    case 'experience':         return `+${payload.amount} EXP -> Slot ${reward.targetSlot + 1}`;
+    case 'experience_percent': return `${payload.percent}% EXP to next lv -> Slot ${reward.targetSlot + 1}`;
+    case 'evs':                return `${payload.stat.toUpperCase()} +${payload.amount} EV`;
+    case 'ivs':                return `IVs set -> Slot ${reward.targetSlot + 1}`;
+    case 'heal':               return `Healed -> Slot ${reward.targetSlot + 1}`;
+    case 'move':               return `Move #${payload.moveId} in slot ${payload.slot + 1}`;
   }
 }
 

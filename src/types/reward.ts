@@ -1,6 +1,7 @@
 export type RewardType =
   | 'give_item'
   | 'add_experience'
+  | 'add_experience_percent'
   | 'boost_evs'
   | 'set_ivs'
   | 'heal_pokemon'
@@ -20,6 +21,7 @@ export interface IVSet {
 export type RewardPayload =
   | { kind: 'item'; itemId: number }
   | { kind: 'experience'; amount: number }
+  | { kind: 'experience_percent'; percent: number }
   | { kind: 'evs'; stat: EvStat; amount: number }
   | { kind: 'ivs'; values: Partial<IVSet> }
   | { kind: 'heal' }

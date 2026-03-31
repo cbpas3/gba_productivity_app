@@ -71,7 +71,7 @@ src/
 User clicks "DONE" on a task
   → TaskItem.tsx: completeTask(task.id)
   → taskStore.completeTask(id)
-      Builds Reward from task priority (see §4)
+      Builds Reward via buildReward(priority) → add_experience_percent with EXP_PERCENT[priority]
       Marks task.status = 'completed', rewardClaimed = true
       eventBus.emit('task:completed', ...)
       eventBus.emit('reward:apply', { reward })
@@ -96,16 +96,34 @@ User clicks "DONE" on a task
 
 ## 4. Task Priority → Reward Mapping
 
-Defined in `src/store/taskStore.ts → buildReward()`. All rewards target **party slot 0** (lead Pokemon).
+Defined in `src/store/taskStore.ts → buildReward()`. All rewards target **party slot 0** (lead Pokemon). All priorities grant EXP as a **percentage of the gap to the next level**.
 
 | Priority | Reward Type | Effect |
 |---|---|---|
-| `low` | `heal_pokemon` | statusCondition = 0, currentHp = maxHp |
-| `medium` | `add_experience` | +500 EXP (capped at 0x00FFFFFF) |
-| `high` | `give_item` | held item = itemId 68 (Max Revive) |
-| `critical` | `set_ivs` | All 6 IVs set to 31 (perfect) |
+| `low` | `add_experience_percent` | 10% of EXP needed for next level |
+| `medium` | `add_experience_percent` | 20% of EXP needed for next level |
+| `high` | `add_experience_percent` | 50% of EXP needed for next level |
+| `critical` | `add_experience_percent` | 100% of EXP needed (guaranteed level-up) |
 
-> **Note**: After `add_experience`, `set_ivs`, or `boost_evs` rewards, `PokemonCryptoService.applyReward` calls `recalculatePartyStats()` to update the party-cached stat block (level, maxHp, attack, defense, speed, spAttack, spDefense) using the Gen III stat formula. This is required because the game reads stats from the cached block, not from the encrypted substructure.
+The `EXP_PERCENT` lookup in `taskStore.ts` maps `TaskPriority → number`. The `buildReward` function emits a single reward type (`add_experience_percent`) with the percentage in the payload.
+
+**How percentage EXP works** (`src/lib/gen3/rewards.ts → addExperiencePercent`):
+1. Looks up the species' growth rate from `BASE_STATS[species]`
+2. Calculates `gap = expForLevel(growthRate, level + 1) - expForLevel(growthRate, level)`
+3. Grants `floor(gap * percent / 100)` EXP (minimum 1)
+4. No-op at level 100
+
+> **Note**: After `add_experience`, `add_experience_percent`, `set_ivs`, or `boost_evs` rewards, `PokemonCryptoService.applyReward` calls `recalculatePartyStats()` to update the party-cached stat block (level, maxHp, attack, defense, speed, spAttack, spDefense) using the Gen III stat formula. This is required because the game reads stats from the cached block, not from the encrypted substructure.
+
+### Legacy reward types (still supported in code, not currently used by task system)
+| Type | Effect |
+|---|---|
+| `heal_pokemon` | statusCondition = 0, currentHp = maxHp |
+| `add_experience` | Flat +N EXP (capped at 0x00FFFFFF) |
+| `give_item` | Sets held item to itemId |
+| `set_ivs` | Sets IVs (partial or full) |
+| `boost_evs` | Adds EVs to a stat (respects 255/510 caps) |
+| `teach_move` | Sets move + 15 PP in slot 0–3 |
 
 ---
 
@@ -282,7 +300,8 @@ quitGame() → setTimeout(0) → FS.writeFile(romPath, romData) → loadGame(rom
 - HP is preserved proportionally if not at full; if at full HP, new maxHp = new maxHp
 
 ### `src/lib/gen3/rewards.ts`
-- `addExperience(pokemon, amount)` — adds EXP, caps at `0x00FFFFFF`
+- `addExperience(pokemon, amount)` — adds flat EXP, caps at `0x00FFFFFF`
+- `addExperiencePercent(pokemon, percent)` — calculates EXP gap to next level from species growth rate, grants `floor(gap * percent / 100)` (min 1). No-op at level 100. **This is the function used by all current task rewards.**
 - `giveHeldItem(pokemon, itemId)` — sets `growth.heldItem`
 - `boostEvs(pokemon, stat, amount)` — respects 255 per stat + 510 total cap
 - `setIVs(pokemon, partialIVs)` — unpack → merge → repack IV bits, preserves egg/ability flags
@@ -293,7 +312,7 @@ quitGame() → setTimeout(0) → FS.writeFile(romPath, romData) → loadGame(rom
 Thin adapter class that implements `IPokemonCryptoService`, delegating to `lib/gen3`:
 - `parseSaveFile` → `saveFileParser.parseSaveFile`
 - `readPartyPokemon(save, slot)` → `getPartyPokemon(save)[slot] ?? null`
-- `applyReward(pokemon, reward)` → switch on `reward.type`, calls `lib/gen3/rewards.*`; then calls `recalculatePartyStats()` for `add_experience`, `set_ivs`, `boost_evs`
+- `applyReward(pokemon, reward)` → switch on `reward.type`, calls `lib/gen3/rewards.*`; then calls `recalculatePartyStats()` for `add_experience`, `add_experience_percent`, `set_ivs`, `boost_evs`
 - `writePartyPokemon` → `setPartyPokemon`
 - `recalculateSectionChecksum` → pass-through (already done inside `setPartyPokemon`)
 
@@ -343,11 +362,9 @@ Typed, singleton event bus. Events:
 
 ## 10. Known Issues / Open Work
 
-### ⚠️ EXP reward shows in save but game doesn't visually update stats
-- **Root cause**: `addExperience` modifies `growth.experience` in the encrypted substructure. The **party-cached stats** (level, maxHp, attack, etc.) at offsets `0x50–0x63` are NOT recalculated.
-- **Gen III behavior**: The game only recalculates party stats at level-up events, not on save load.
-- **Workaround needed**: Either (a) manually recalculate and write the level + stats into the party fields, or (b) give enough EXP to cause a level-up so the game recalculates naturally. The EXP IS correctly stored — it just won't reflect visually until level-up.
-- **Status**: Unresolved as of session end.
+### ✅ Fixed: EXP reward shows in save but game doesn't visually update stats
+- **Root cause**: `addExperience` modifies `growth.experience` in the encrypted substructure but the **party-cached stats** (level, maxHp, attack, etc.) at offsets `0x50–0x63` were NOT recalculated.
+- **Fix (Session 2)**: Implemented `recalculatePartyStats()` in `statCalc.ts`. Uses the Gen III stat formula with nature modifiers, base stats, IVs, EVs. Called automatically by `PokemonCryptoService.applyReward` after any EXP/IV/EV reward.
 
 ### ✅ Fixed: Save file truncation (114 688 vs 131 072 bytes)
 - Old code set `SAVE_SIZE = 4096 * 14 * 2 = 114 688`. The real Gen III save is 128KB (131 072).
@@ -421,19 +438,28 @@ Tests use synthetic save buffers with R/S-style offsets (game code 0). `detectGa
 10. **quitGame crash**: `focusEventHandlerFunc` crashed when DOM focus events fired during quitGame teardown (`stringToUTF8Array` gets null). Fixed by calling `toggleInput(false)` before `quitGame()`.
 11. **Auto-save state conflict**: Discovered mGBA automatically captures snapshots every 30s. If an `.ss` file existed, `loadGame` restored it instead of reading our modified `.sav`, reverting in-game stats. Fixed by deleting `.ss` before load and disabling snapshot capture during reload.
 
-### Session 3: Mobile Layout & Responsiveness
+### Session 3: Mobile Layout & Responsiveness (continued by different LLM)
 12. **Mobile Flex Ordering**: The `AppLayout` was restructured internally on screens ≤ 768px. Using `flex-direction: column` originally pushed the Emulator canvas below the Quest Log. This was fixed by applying `order: -1` to the `.app-layout__right-panel`, prioritizing gameplay at the top of the mobile viewport.
 13. **Strict Touch Controls**: iOS Safari aggressively scrolls the web page when mashing on-screen touch D-pads. Resolved by explicitly binding `onTouchStart`, `onTouchEnd`, `onTouchMove`, and `onTouchCancel` events on the `<ControlButton>` components that trigger `e.preventDefault()`, halting native touch-action completely.
 14. **Canvas Width Inheritence**: On mobile, the emulator screen stayed artificially small despite `width: 100%` because its flex-parent `.emulator-canvas` was shrinking-to-fit the native canvas `240px` size. Fixed by ensuring `.emulator-canvas` is also `width: 100%`.
 15. **Button Overflow**: Reduced mobile padding on the container `.card` and moved the `SELECT`/`START` buttons to the bottom of the `GbaControls` component to give the D-pad and A/B buttons enough horizontal space.
 
+### Session 4: Percentage-Based EXP Rewards
+16. **Reward system overhaul**: Replaced the mixed reward types (heal/flat EXP/item/IVs) with a unified percentage-based EXP system. All four task priorities now grant EXP as a percentage of the gap to the next level: low=10%, medium=20%, high=50%, critical=100%.
+17. **New reward type `add_experience_percent`**: Added to `RewardType`, `RewardPayload` (new `experience_percent` kind with `percent` field), `rewards.ts` (`addExperiencePercent` function), `PokemonCryptoService.applyReward` (new case + stat recalc), and all UI components (`RewardDisplay`, `RewardLog`, `TaskForm`, `TaskItem`).
+18. **`addExperiencePercent` implementation** (`rewards.ts`): Looks up species growth rate from `BASE_STATS`, calculates `expForLevel(level+1) - expForLevel(level)`, grants `floor(gap * percent / 100)` (min 1). No-op at level 100. Delegates to `addExperience` for the actual mutation + cap.
+19. **Backward compatibility**: The old reward types (`heal_pokemon`, `add_experience`, `give_item`, `set_ivs`, `boost_evs`, `teach_move`) are still fully supported in the crypto service — they're just not used by `buildReward()` anymore. They can be re-enabled by changing `taskStore.ts`.
+20. **UI labels updated**: `TaskForm` hints and `TaskItem` reward labels now show "10% EXP to next level" etc. instead of the old mixed descriptions. `RewardLog` shows "%EXP" with the percentage in the detail line.
+
 ---
 
 ## 14. Next Steps (Suggested)
 
-1. **Test other reward types** — only `add_experience` has been tested end-to-end. `heal_pokemon`, `give_item`, `set_ivs` use the same pipeline and should work.
+1. **Test the percentage EXP rewards end-to-end** — verify that low (10%), medium (20%), high (50%), and critical (100%) all produce correct EXP amounts for different Pokemon at different levels. The `addExperiencePercent` function has unit test coverage via the rewards test suite but has not been confirmed visually in-game across all priorities.
 
 2. **Add UI feedback** — show the user a visual "Game reloading with reward..." overlay while the 1-second save injection delay is running so they don't think the app froze.
 
 3. **Explore WASM memory pointer** — future optimization: mGBA WASM exposes the raw C heap. If we could locate the save chip pointer in memory, we could write the 128KB payload directly to RAM without forcing a game restart. This would allow truly seamless background rewards without kicking the player to the title screen.
+
+4. **Re-enable other reward types** — the legacy reward types (heal, items, IVs, EVs, moves) are still fully implemented in the crypto service. They could be surfaced as bonus rewards, achievement unlocks, or selectable options alongside the EXP rewards.
 

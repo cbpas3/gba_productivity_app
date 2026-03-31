@@ -10,10 +10,10 @@ const PRIORITY_OPTIONS: { value: TaskPriority; label: string; icon: string }[] =
 ];
 
 const REWARD_HINTS: Record<TaskPriority, string> = {
-  low:      'Reward: Heal Pokemon',
-  medium:   'Reward: +500 EXP',
-  high:     'Reward: Rare Candy',
-  critical: 'Reward: Perfect IVs',
+  low:      'Reward: 10% EXP to next level',
+  medium:   'Reward: 20% EXP to next level',
+  high:     'Reward: 50% EXP to next level',
+  critical: 'Reward: 100% EXP to next level',
 };
 
 export function TaskForm() {

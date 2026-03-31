@@ -4,36 +4,19 @@ import type { Task, TaskPriority } from '../types/task';
 import type { Reward } from '../types/reward';
 import { eventBus } from './eventBus';
 
+const EXP_PERCENT: Record<TaskPriority, number> = {
+  low:      10,
+  medium:   20,
+  high:     50,
+  critical: 100,
+};
+
 function buildReward(priority: TaskPriority): Reward {
-  switch (priority) {
-    case 'low':
-      return {
-        type: 'heal_pokemon',
-        targetSlot: 0,
-        payload: { kind: 'heal' },
-      };
-    case 'medium':
-      return {
-        type: 'add_experience',
-        targetSlot: 0,
-        payload: { kind: 'experience', amount: 500 },
-      };
-    case 'high':
-      return {
-        type: 'give_item',
-        targetSlot: 0,
-        payload: { kind: 'item', itemId: 68 },
-      };
-    case 'critical':
-      return {
-        type: 'set_ivs',
-        targetSlot: 0,
-        payload: {
-          kind: 'ivs',
-          values: { hp: 31, atk: 31, def: 31, spd: 31, spatk: 31, spdef: 31 },
-        },
-      };
-  }
+  return {
+    type: 'add_experience_percent',
+    targetSlot: 0,
+    payload: { kind: 'experience_percent', percent: EXP_PERCENT[priority] },
+  };
 }
 
 interface TaskState {

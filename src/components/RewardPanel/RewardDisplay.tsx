@@ -3,21 +3,23 @@ import { useRewardStore } from '../../store/rewardStore';
 import { RewardLog } from './RewardLog';
 
 const REWARD_ICONS: Record<RewardType, string> = {
-  give_item:      '*',
-  add_experience: 'E',
-  boost_evs:      'V',
-  set_ivs:        '!',
-  heal_pokemon:   '+',
-  teach_move:     'M',
+  give_item:              '*',
+  add_experience:         'E',
+  add_experience_percent: '%',
+  boost_evs:              'V',
+  set_ivs:                '!',
+  heal_pokemon:           '+',
+  teach_move:             'M',
 };
 
 const REWARD_LABELS: Record<RewardType, string> = {
-  give_item:      'Rare Candy',
-  add_experience: '+500 EXP',
-  boost_evs:      'EV Boost',
-  set_ivs:        'Perfect IVs',
-  heal_pokemon:   'Full Heal',
-  teach_move:     'New Move',
+  give_item:              'Rare Candy',
+  add_experience:         '+EXP',
+  add_experience_percent: '%EXP',
+  boost_evs:              'EV Boost',
+  set_ivs:                'Perfect IVs',
+  heal_pokemon:           'Full Heal',
+  teach_move:             'New Move',
 };
 
 export function RewardDisplay() {

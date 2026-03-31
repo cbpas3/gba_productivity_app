@@ -8,6 +8,7 @@
 import type { Pokemon, EvsConditionSubstructure } from '../../types/pokemon.ts';
 import type { IVSet, EvStat } from '../../types/reward.ts';
 import { unpackIVs, packIVs } from './ivUtils.ts';
+import { getBaseStats, expForLevel, levelFromExp } from './baseStats.ts';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -66,6 +67,32 @@ export function addExperience(pokemon: Pokemon, amount: number): Pokemon {
       experience: newExp >>> 0,
     },
   };
+}
+
+/**
+ * Add a percentage of the EXP needed to reach the next level.
+ *
+ * Calculates the gap between the Pokemon's current EXP and the EXP required
+ * for the next level, then grants `percent`% of that gap (floored, minimum 1).
+ * At level 100 this is a no-op (already max level).
+ *
+ * @param pokemon - The Pokemon to modify.
+ * @param percent - Percentage of EXP-to-next-level to grant (e.g. 10, 50, 100).
+ */
+export function addExperiencePercent(pokemon: Pokemon, percent: number): Pokemon {
+  const species   = pokemon.growth.species;
+  const currentExp = pokemon.growth.experience >>> 0;
+  const stats     = getBaseStats(species);
+  const level     = levelFromExp(stats.growthRate, currentExp);
+
+  if (level >= 100) return pokemon;
+
+  const expThisLevel = expForLevel(stats.growthRate, level);
+  const expNextLevel = expForLevel(stats.growthRate, level + 1);
+  const gap          = expNextLevel - expThisLevel;
+  const amount       = Math.max(1, Math.floor(gap * percent / 100));
+
+  return addExperience(pokemon, amount);
 }
 
 /**

@@ -2,7 +2,7 @@ import type { Pokemon } from '../types/pokemon';
 import type { SaveFile } from '../types/savefile';
 import type { Reward } from '../types/reward';
 import { parseSaveFile, getPartyPokemon, setPartyPokemon } from '../lib/gen3/saveFileParser';
-import { giveHeldItem, addExperience, boostEvs, setIVs, healPokemon, teachMove } from '../lib/gen3/rewards';
+import { giveHeldItem, addExperience, addExperiencePercent, boostEvs, setIVs, healPokemon, teachMove } from '../lib/gen3/rewards';
 import { recalculatePartyStats } from '../lib/gen3/statCalc';
 
 export class PokemonCryptoService {
@@ -29,6 +29,12 @@ export class PokemonCryptoService {
         const p = reward.payload;
         if (p.kind !== 'experience') throw new Error('Invalid payload for add_experience');
         result = addExperience(pokemon, p.amount);
+        break;
+      }
+      case 'add_experience_percent': {
+        const p = reward.payload;
+        if (p.kind !== 'experience_percent') throw new Error('Invalid payload for add_experience_percent');
+        result = addExperiencePercent(pokemon, p.percent);
         break;
       }
       case 'boost_evs': {
@@ -59,8 +65,9 @@ export class PokemonCryptoService {
     // Recalculate party-cached stats (level, maxHp, attack, etc.) after any
     // reward that affects the stat formula inputs.
     const needsStatRecalc =
-      reward.type === 'add_experience' ||
-      reward.type === 'set_ivs'        ||
+      reward.type === 'add_experience'         ||
+      reward.type === 'add_experience_percent' ||
+      reward.type === 'set_ivs'                ||
       reward.type === 'boost_evs';
 
     return needsStatRecalc ? recalculatePartyStats(result) : result;
