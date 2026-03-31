@@ -7,11 +7,15 @@ export interface SaveSection {
   saveIndex: number; // u32
 }
 
+/** Detected Gen III game variant — determines save layout offsets. */
+export type GameVariant = 'ruby_sapphire' | 'emerald' | 'firered_leafgreen';
+
 /** Parsed save file with both blocks */
 export interface SaveFile {
   raw: Uint8Array; // full 128KB save
   activeBlock: 'A' | 'B';
   sections: SaveSection[]; // 14 sections from the active block
+  gameVariant: GameVariant;
 }
 
 /** Party Pokemon location within save */
