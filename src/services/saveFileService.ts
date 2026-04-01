@@ -126,7 +126,7 @@ export class SaveFileService {
       if (pokemon === null || pokemon === undefined) {
         return {
           success: false,
-          error: `No Pokemon in party slot ${reward.targetSlot}`,
+          error: `No Pokemon in party slot ${reward.targetSlot}. Try saving in-game again — early saves may be incomplete.`,
         };
       }
 

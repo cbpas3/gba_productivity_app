@@ -184,6 +184,9 @@ export function parseSaveFile(data: Uint8Array): SaveFile {
 export function getPartyPokemon(saveFile: SaveFile): Pokemon[] {
   const section1 = findSection(saveFile.sections, PARTY_SECTION_ID);
   if (!section1) {
+    const presentIds = saveFile.sections.map((s) => s.sectionId).sort((a, b) => a - b);
+    console.warn('[getPartyPokemon] Section ID 1 not found. Present section IDs:', presentIds.join(', '),
+      '— save file may be incomplete (common on the very first in-game save)');
     return [];
   }
 
