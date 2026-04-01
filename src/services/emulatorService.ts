@@ -214,76 +214,102 @@ class EmulatorServiceImpl implements IEmulatorService {
     const savePath = this.currentSavePath;
     const romPath  = this.currentRomPath;
 
-    console.log('[EmulatorService] writeSaveAndReload: injecting', saveData.byteLength, 'bytes →', savePath);
+    console.log('[EmulatorService] writeSaveAndReload: START injecting', saveData.byteLength, 'bytes →', savePath);
 
-    // 1. Disable auto-save-state restore (periodic snapshot would overwrite our save on loadGame).
-    try { this.module!.setCoreSettings({ restoreAutoSaveStateOnLoad: false }); } catch { /* non-fatal */ }
+    // 1. Disable auto-save-state restore.
+    try {
+      this.module!.setCoreSettings({ restoreAutoSaveStateOnLoad: false });
+      console.log('[EmulatorService] step 1: setCoreSettings OK');
+    } catch (e) { console.warn('[EmulatorService] step 1: setCoreSettings failed', e); }
 
-    // 2. Write our save BEFORE quitGame — ensures it exists in VFS before teardown.
-    this.module!.FS.writeFile(savePath, saveData);
+    // 2. Write our save BEFORE quitGame.
+    try {
+      this.module!.FS.writeFile(savePath, saveData);
+      console.log('[EmulatorService] step 2: FS.writeFile (pre-quit) OK');
+    } catch (e) { console.error('[EmulatorService] step 2: FS.writeFile failed', e); }
 
-    // 3. Disable DOM input to prevent focusEventHandlerFunc crash during teardown.
-    try { this.module!.toggleInput(false); } catch { /* non-fatal */ }
+    // 3. Disable DOM input to prevent focusEventHandlerFunc crash.
+    try {
+      this.module!.toggleInput(false);
+      console.log('[EmulatorService] step 3: toggleInput(false) OK');
+    } catch (e) { console.warn('[EmulatorService] step 3: toggleInput failed', e); }
 
-    // 4. quitGame: mGBA flushes its in-memory save chip to the VFS path on exit.
-    //    In a pthreads build this flush may happen asynchronously in a worker thread.
-    try { this.module!.quitGame(); } catch { /* non-fatal */ }
+    // 4. quitGame.
+    try {
+      this.module!.quitGame();
+      console.log('[EmulatorService] step 4: quitGame() OK');
+    } catch (e) { console.error('[EmulatorService] step 4: quitGame() FAILED', e); }
 
-    // 5. Wait for the WASM worker thread to finish its save flush.
-    //    1000 ms is conservative but reliable — avoids the race where the flush
-    //    overwrites the save we wrote in step 2.
+    // 5. Wait for WASM worker thread to finish save flush.
+    console.log('[EmulatorService] step 5: waiting 1000ms for flush...');
     await new Promise<void>((resolve) => setTimeout(resolve, 1000));
+    console.log('[EmulatorService] step 5: wait complete');
 
-    // 6. Write our save AGAIN — guaranteed to land after any async flush.
-    this.module!.FS.writeFile(savePath, saveData);
-    console.log('[EmulatorService] writeSaveAndReload: wrote modified save (post-flush)');
+    // 6. Write our save AGAIN — guaranteed after any async flush.
+    try {
+      this.module!.FS.writeFile(savePath, saveData);
+      console.log('[EmulatorService] step 6: FS.writeFile (post-flush) OK');
+    } catch (e) { console.error('[EmulatorService] step 6: FS.writeFile failed', e); }
 
-    // 7. Re-stage ROM (quitGame unmounts it from the in-memory VFS).
+    // 7. Re-stage ROM.
     if (this.currentRomData !== null) {
-      this.module!.FS.writeFile(romPath, this.currentRomData);
+      try {
+        this.module!.FS.writeFile(romPath, this.currentRomData);
+        console.log('[EmulatorService] step 7: ROM re-staged OK');
+      } catch (e) { console.error('[EmulatorService] step 7: ROM re-stage failed', e); }
     }
 
-    // 8. Delete the auto-save state snapshot so mGBA cannot restore the old
-    //    in-game state on loadGame. The snapshot (.ss file) captures a full
-    //    GBA hardware state including EWRAM party data — if restored it would
-    //    silently override our modified .sav and show the old Pokemon stats.
+    // 8. Delete auto-save state snapshot.
     const autoSavePath = this.module!.autoSaveStateName;
     if (autoSavePath) {
-      try { this.module!.FS.unlink(autoSavePath); } catch { /* file may not exist */ }
-      console.log('[EmulatorService] writeSaveAndReload: deleted auto-save snapshot', autoSavePath);
+      try {
+        this.module!.FS.unlink(autoSavePath);
+        console.log('[EmulatorService] step 8: deleted .ss snapshot', autoSavePath);
+      } catch { /* file may not exist */ }
     }
+    try {
+      this.module!.setCoreSettings({ autoSaveStateEnable: false });
+      console.log('[EmulatorService] step 8b: autoSaveStateEnable=false OK');
+    } catch (e) { console.warn('[EmulatorService] step 8b: setCoreSettings failed', e); }
 
-    // Also disable auto-save-state capture during reload so a new snapshot
-    // isn't taken before we have a chance to be in the right game state.
-    try { this.module!.setCoreSettings({ autoSaveStateEnable: false }); } catch { /* non-fatal */ }
-
-    // 9. Cold-reload the ROM. loadGame() re-reads the save file from `savePath`.
-    //    Passing savePath explicitly ensures the correct save is used even if
-    //    mGBA's internal derivation would pick a different file.
-    const accepted = this.module!.loadGame(romPath, savePath);
-    if (!accepted) {
+    // 9. Cold-reload the ROM.
+    try {
+      const accepted = this.module!.loadGame(romPath, savePath);
+      console.log('[EmulatorService] step 9: loadGame() →', accepted);
+      if (!accepted) {
+        this.setStatus('error');
+        throw new Error('mGBA rejected the ROM during reload after save injection.');
+      }
+    } catch (e) {
+      console.error('[EmulatorService] step 9: loadGame() FAILED', e);
       this.setStatus('error');
-      throw new Error('mGBA rejected the ROM during reload after save injection.');
+      try { this.module!.toggleInput(true); } catch { /* restore input */ }
+      throw e;
     }
 
-    // 9. Re-enable input so the player can press START → CONTINUE on the title screen.
-    try { this.module!.toggleInput(true); } catch { /* non-fatal */ }
+    // 10. Re-enable input.
+    try {
+      this.module!.toggleInput(true);
+      console.log('[EmulatorService] step 10: toggleInput(true) OK');
+    } catch (e) { console.warn('[EmulatorService] step 10: toggleInput failed', e); }
 
-    // 10. Re-enable auto-save-state for future normal gameplay.
+    // 11. Re-enable auto-save-state.
     try {
       this.module!.setCoreSettings({
         restoreAutoSaveStateOnLoad: true,
         autoSaveStateEnable: true,
       });
-    } catch { /* non-fatal */ }
+      console.log('[EmulatorService] step 11: auto-save re-enabled OK');
+    } catch (e) { console.warn('[EmulatorService] step 11: setCoreSettings failed', e); }
 
-    // 11. Persist to IndexedDB so the save survives a page reload.
+    // 12. Persist to IndexedDB.
     try {
       this.module!.FS.writeFile(savePath, saveData);
       await this.module!.FSSync();
-    } catch { /* non-fatal */ }
+      console.log('[EmulatorService] step 12: FSSync OK');
+    } catch (e) { console.warn('[EmulatorService] step 12: FSSync failed', e); }
 
-    console.log('[EmulatorService] writeSaveAndReload: complete — title screen should appear');
+    console.log('[EmulatorService] writeSaveAndReload: COMPLETE');
     this.setStatus('running');
   }
 
