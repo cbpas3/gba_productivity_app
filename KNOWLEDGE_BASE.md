@@ -6,10 +6,11 @@
 
 ## 1. Project Overview
 
-A **Vite + React + TypeScript** web app that embeds the mGBA Game Boy Advance emulator (via WASM) and grants real in-game Pokemon rewards when the user completes productivity tasks.
+A **Vite + React + TypeScript** progressive web app (PWA) that embeds the mGBA Game Boy Advance emulator (via WASM) and grants real in-game Pokemon rewards when the user completes productivity tasks. Installable on iOS via Safari "Add to Home Screen" and on Android/desktop via browser install prompt.
 
 - **Stack**: Vite 5, React 18, TypeScript 5.9, Zustand 4, vitest 2
 - **Emulator**: `@thenick775/mgba-wasm` ^2.4.1 — Emscripten-compiled mGBA with an IndexedDB-backed virtual filesystem (VFS)
+- **PWA**: Service worker (`public/sw.js`) + web app manifest (`public/manifest.webmanifest`) for offline caching and installability
 - **Run dev**: `npm run dev` (from `/Users/cbpas/Projects/gba_productivity_app`)
 - **Tests**: `npx vitest run` — 6 test files, 94 tests, all passing as of session
 
@@ -61,6 +62,13 @@ src/
     task.ts                    # Task, TaskPriority, TaskStatus
   utils/
     crossOriginCheck.ts        # assertCrossOriginIsolated (needed for SharedArrayBuffer/WASM)
+public/
+  manifest.webmanifest         # PWA manifest (name, icons, display: standalone)
+  sw.js                        # Service worker: precache app shell, cache-first assets, network-first navigation
+  icon.svg                     # GBA-themed SVG icon (pixel checkmark, D-pad, A/B, "EXP+")
+  icon-192.png                 # 192×192 PNG icon for Android/manifest
+  icon-512.png                 # 512×512 PNG icon for Android splash
+  apple-touch-icon.png         # 180×180 PNG icon for iOS home screen
 ```
 
 ---
@@ -265,12 +273,26 @@ Cross-Origin-Embedder-Policy: require-corp
 ```
 `vite.config.ts` configures this. The app shows a warning banner if isolation is missing.
 
-### Reload Strategy
-`writeSaveAndReload` uses a **full quit + reload** cycle (not `quickReload`) after writing save data:
+### Reload Strategy — 12-Step `writeSaveAndReload`
+
+`writeSaveAndReload` uses a **full quit + reload** cycle with the **double-write pattern** and 12 numbered diagnostic log steps:
+
 ```
-quitGame() → setTimeout(0) → FS.writeFile(romPath, romData) → loadGame(romPath)
+Step  1: setCoreSettings({ restoreAutoSaveStateOnLoad: false })
+Step  2: FS.writeFile(savePath, saveData)   — pre-quit write
+Step  3: toggleInput(false)                 — prevent focusEventHandlerFunc crash
+Step  4: quitGame()                         — C core flushes save to VFS asynchronously
+Step  5: wait 1000ms                        — let async pthread flush complete
+Step  6: FS.writeFile(savePath, saveData)   — post-flush write (wins the race)
+Step  7: FS.writeFile(romPath, romData)     — re-stage ROM in VFS
+Step  8: delete .ss auto-save state file + disable autoSaveStateEnable
+Step  9: loadGame(romPath, savePath)        — reads our modified save
+Step 10: toggleInput(true)                  — re-enable keyboard/touch input
+Step 11: re-enable autoSaveStateEnable + restoreAutoSaveStateOnLoad
+Step 12: FSSync()                           — flush to IndexedDB
 ```
-`currentRomData` is captured in memory at `loadRom()` so the ROM can be re-written to VFS after quit.
+
+`currentRomData` is captured in memory at `loadRom()` so the ROM can be re-written to VFS after quit. Each step has a `console.log` for debugging.
 
 ---
 
@@ -379,6 +401,11 @@ Typed, singleton event bus. Events:
 - Old code used `quickReload()` which doesn't reliably pick up externally-modified saves.
 - Fix: Capture `this.currentSavePath = this.module.saveName ?? savePath` after `loadGame`. Use `fullReload()` (quit + reload cycle).
 
+### ⚠️ Known: FireRed first-save incomplete sections
+- FireRed's very first in-game save may not write all 14 sections to the save file. Section ID 1 (party data) can be missing, causing `readPartyPokemon` to return null.
+- **Workaround**: The user must save in-game at least **twice** before rewards will work. The app shows a descriptive error: *"No Pokemon in party slot X. Try saving in-game again — early saves may be incomplete."*
+- Second save and all subsequent saves work correctly.
+
 ---
 
 ## 11. Game Compatibility
@@ -451,15 +478,27 @@ Tests use synthetic save buffers with R/S-style offsets (game code 0). `detectGa
 19. **Backward compatibility**: The old reward types (`heal_pokemon`, `add_experience`, `give_item`, `set_ivs`, `boost_evs`, `teach_move`) are still fully supported in the crypto service — they're just not used by `buildReward()` anymore. They can be re-enabled by changing `taskStore.ts`.
 20. **UI labels updated**: `TaskForm` hints and `TaskItem` reward labels now show "10% EXP to next level" etc. instead of the old mixed descriptions. `RewardLog` shows "%EXP" with the percentage in the detail line.
 
+### Session 5: iOS Debugging & PWA Conversion
+21. **FireRed first-save edge case**: Diagnosed why reward pipeline failed on first attempt on iOS. FireRed's very first in-game save doesn't write all 14 sections — Section ID 1 (party data) can be missing. This is a game-level behavior, not iOS-specific. Works after a second in-game save. Added descriptive error message and logging of which section IDs are present.
+22. **12-step diagnostic logging**: Added numbered `console.log` statements to every step of `writeSaveAndReload` for easier debugging of the save injection pipeline across platforms.
+23. **PWA conversion**: Made the app installable as a standalone app on iOS and Android:
+    - Created `public/manifest.webmanifest` — app name, theme color (#7c3aed), dark background (#1a0a2e), standalone display, icons at SVG/192/512/180 sizes.
+    - Created `public/sw.js` — service worker with precache of app shell URLs on install, cache-first strategy for static assets (.js/.css/.wasm/.png/.svg), network-first with cache fallback for navigation requests, `skipWaiting()` + `clients.claim()` for immediate activation.
+    - Created `public/icon.svg` — GBA-themed SVG icon with pixel checkmark, D-pad, A/B buttons, "EXP+" text.
+    - Generated `public/icon-192.png`, `public/icon-512.png`, `public/apple-touch-icon.png` from SVG.
+    - Updated `index.html` — added `<link rel="manifest">`, `apple-mobile-web-app-capable`, `apple-mobile-web-app-status-bar-style` (black-translucent), `apple-mobile-web-app-title`, `apple-touch-icon`, `theme-color`, `viewport-fit=cover`.
+    - Updated `src/main.tsx` — service worker registration on page load.
+24. **iOS PWA note**: Installation requires Safari (not Chrome on iOS, since Chrome/iOS doesn't support "Add to Home Screen"). Use Safari → Share → "Add to Home Screen".
+
 ---
 
 ## 14. Next Steps (Suggested)
 
-1. **Test the percentage EXP rewards end-to-end** — verify that low (10%), medium (20%), high (50%), and critical (100%) all produce correct EXP amounts for different Pokemon at different levels. The `addExperiencePercent` function has unit test coverage via the rewards test suite but has not been confirmed visually in-game across all priorities.
+1. **Add UI feedback** — show the user a visual "Game reloading with reward..." overlay while the 1-second save injection delay is running so they don't think the app froze.
 
-2. **Add UI feedback** — show the user a visual "Game reloading with reward..." overlay while the 1-second save injection delay is running so they don't think the app froze.
+2. **Explore WASM memory pointer** — future optimization: mGBA WASM exposes the raw C heap. If we could locate the save chip pointer in memory, we could write the 128KB payload directly to RAM without forcing a game restart. This would allow truly seamless background rewards without kicking the player to the title screen.
 
-3. **Explore WASM memory pointer** — future optimization: mGBA WASM exposes the raw C heap. If we could locate the save chip pointer in memory, we could write the 128KB payload directly to RAM without forcing a game restart. This would allow truly seamless background rewards without kicking the player to the title screen.
+3. **Re-enable other reward types** — the legacy reward types (heal, items, IVs, EVs, moves) are still fully implemented in the crypto service. They could be surfaced as bonus rewards, achievement unlocks, or selectable options alongside the EXP rewards.
 
-4. **Re-enable other reward types** — the legacy reward types (heal, items, IVs, EVs, moves) are still fully implemented in the crypto service. They could be surfaced as bonus rewards, achievement unlocks, or selectable options alongside the EXP rewards.
+4. **PWA enhancements** — add offline fallback page, background sync for task persistence, push notifications for task reminders, and app update prompts when the service worker detects a new version.
 
