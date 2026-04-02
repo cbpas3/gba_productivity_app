@@ -10,6 +10,8 @@ interface UiState {
   setMobileControlAlignment: (alignment: MobileControlAlignment) => void;
   isTaskBoardOpen: boolean;
   setIsTaskBoardOpen: (isOpen: boolean) => void;
+  isBulkImportOpen: boolean;
+  setIsBulkImportOpen: (isOpen: boolean) => void;
 }
 
 export const useUiStore = create<UiState>()(
@@ -21,6 +23,8 @@ export const useUiStore = create<UiState>()(
       setMobileControlAlignment: (alignment) => set({ mobileControlAlignment: alignment }),
       isTaskBoardOpen: false,
       setIsTaskBoardOpen: (isOpen) => set({ isTaskBoardOpen: isOpen }),
+      isBulkImportOpen: false,
+      setIsBulkImportOpen: (isOpen) => set({ isBulkImportOpen: isOpen }),
     }),
     {
       name: 'gba-ui-prefs',

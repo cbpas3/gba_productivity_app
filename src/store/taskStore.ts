@@ -23,6 +23,7 @@ function buildReward(priority: TaskPriority): Reward {
 interface TaskState {
   tasks: Task[];
   addTask: (title: string, description: string, priority: TaskPriority, recurrence?: TaskRecurrence) => void;
+  bulkAddTasks: (rawTasks: Partial<Task>[]) => void;
   completeTask: (id: string) => void;
   deleteTask: (id: string) => void;
   updateTaskPriority: (id: string, newPriority: TaskPriority) => void;
@@ -48,6 +49,33 @@ export const useTaskStore = create<TaskState>()(
         };
         set((state) => ({ tasks: [...state.tasks, task] }));
         eventBus.emit('task:created', { task });
+      },
+
+      bulkAddTasks: (rawTasks) => {
+        if (!Array.isArray(rawTasks)) return;
+
+        const VALID_PRIORITIES = new Set<TaskPriority>(['low', 'medium', 'high', 'critical']);
+        const VALID_RECURRENCES = new Set<TaskRecurrence>(['none', 'daily', 'weekly']);
+
+        const resolvedTasks: Task[] = rawTasks.map((rt) => ({
+          id: crypto.randomUUID(),
+          title: rt.title || 'Untitled imported task',
+          description: rt.description || '',
+          // Validate enum fields — reject unknown strings rather than passing them
+          // through, since an invalid priority produces undefined in EXP_PERCENT.
+          priority: VALID_PRIORITIES.has(rt.priority as TaskPriority)
+            ? (rt.priority as TaskPriority)
+            : 'low',
+          status: 'pending',
+          recurrence: VALID_RECURRENCES.has(rt.recurrence as TaskRecurrence)
+            ? (rt.recurrence as TaskRecurrence)
+            : 'none',
+          createdAt: Date.now(),
+          lastCompletedAt: null,
+          rewardClaimed: false,
+        }));
+
+        set((state) => ({ tasks: [...state.tasks, ...resolvedTasks] }));
       },
 
       completeTask: (id) => {

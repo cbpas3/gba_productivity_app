@@ -22,9 +22,12 @@ export function TaskBoardModal() {
 
   if (!isOpen) return null;
 
-  // Filter tasks based on exact logic requested
-  const priorityTasks = tasks.filter(t => 
-    t.status === 'pending' || (t.status === 'completed' && t.recurrence && t.recurrence !== 'none')
+  // Active columns: pending, in-progress, and completed-but-recurring (locked cards).
+  // in-progress is included so tasks in that state are not silently invisible.
+  const priorityTasks = tasks.filter(t =>
+    t.status === 'pending' ||
+    t.status === 'in-progress' ||
+    (t.status === 'completed' && t.recurrence && t.recurrence !== 'none')
   );
 
   const completedOneOffTasks = tasks.filter(t => 
@@ -54,7 +57,10 @@ export function TaskBoardModal() {
   function handleDropCompleted(e: React.DragEvent) {
     e.preventDefault();
     const id = e.dataTransfer.getData('text/plain');
-    if (id) completeTask(id);
+    if (id) {
+      const task = tasks.find((t) => t.id === id);
+      if (task && task.status === 'pending') completeTask(id);
+    }
     setDraggedTaskId(null);
   }
 

@@ -1,7 +1,7 @@
 import { useRef, useEffect, useCallback } from "react";
 import { Header } from "./Header";
 import { TutorialModal } from "../TutorialModal";
-import { TaskForm, TaskList, TaskBoardModal } from "../TaskManager";
+import { TaskForm, TaskList, TaskBoardModal, BulkImportModal } from "../TaskManager";
 import { RewardDisplay } from "../RewardPanel";
 import { EmulatorCanvas, GbaControls, RomLoader } from "../EmulatorView";
 import { emulatorService } from "../../services/emulatorService";
@@ -149,6 +149,7 @@ export function AppLayout() {
 
       <TutorialModal />
       <TaskBoardModal />
+      <BulkImportModal />
 
       <style>{`
         .app-layout {

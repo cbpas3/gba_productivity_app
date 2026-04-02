@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { TaskPriority, TaskRecurrence } from '../../types/task';
 import { useTaskStore } from '../../store/taskStore';
+import { useUiStore } from '../../store/uiStore';
 
 const PRIORITY_OPTIONS: { value: TaskPriority; label: string; icon: string }[] = [
   { value: 'low',      label: 'LOW',      icon: '>' },
@@ -18,6 +19,7 @@ const REWARD_HINTS: Record<TaskPriority, string> = {
 
 export function TaskForm() {
   const addTask = useTaskStore((s) => s.addTask);
+  const setIsBulkImportOpen = useUiStore((s) => s.setIsBulkImportOpen);
 
   const [title,       setTitle]       = useState('');
   const [description, setDescription] = useState('');
@@ -107,13 +109,23 @@ export function TaskForm() {
         {REWARD_HINTS[priority]}
       </div>
 
-      <button
-        type="submit"
-        className={`btn btn--primary task-form__submit ${submitted ? 'task-form__submit--ok' : ''}`}
-        disabled={!title.trim()}
-      >
-        {submitted ? '>> QUEST ADDED! <<' : '[ ADD QUEST ]'}
-      </button>
+      <div className="task-form__actions">
+        <button
+          type="button"
+          className="btn btn--secondary task-form__import-btn"
+          onClick={() => setIsBulkImportOpen(true)}
+          title="Import tasks from a JSON array"
+        >
+          [ JSON ]
+        </button>
+        <button
+          type="submit"
+          className={`btn btn--primary task-form__submit ${submitted ? 'task-form__submit--ok' : ''}`}
+          disabled={!title.trim()}
+        >
+          {submitted ? '>> QUEST ADDED! <<' : '[ ADD QUEST ]'}
+        </button>
+      </div>
 
       <style>{`
         .task-form {
@@ -161,9 +173,18 @@ export function TaskForm() {
         .task-form__hint-icon {
           color: var(--color-accent-yellow);
         }
-        .task-form__submit {
+        .task-form__actions {
+          display: flex;
+          gap: var(--space-2);
           margin-top: var(--space-1);
-          width: 100%;
+        }
+        .task-form__import-btn {
+          flex: 0 0 auto;
+          padding: var(--space-3);
+          font-size: 0.6rem;
+        }
+        .task-form__submit {
+          flex: 1;
           padding: var(--space-3) var(--space-4);
         }
         .task-form__submit--ok {
