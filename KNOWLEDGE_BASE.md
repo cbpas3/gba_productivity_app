@@ -451,6 +451,11 @@ Typed, singleton event bus. Events:
 - `onPointerCancel` and `onTouchCancel` called `preventDefault()` but never `releaseButton()`. Button stayed pressed forever after an OS interruption.
 - Fix: Both cancel handlers now call `emulatorService.releaseButton(button)`.
 
+### ✅ Fixed: Text input blocked locally but works on Vercel (Session 9)
+- **Root cause**: React StrictMode (dev only) double-invokes `useEffect`. In `AppLayout`, `initialized.current` was only set to `true` inside the async `.then()`. Both StrictMode invocations saw `initialized.current === false` before the first async call resolved, so `initEmulator()` was called twice, racing to call `mGBA({ canvas })`. This created two SDL2 instances — the second overwrote `this.module`, but the orphaned first instance kept its DOM keyboard event listeners active. `toggleInput(false)` only reached the second instance, leaving the first's SDL2 capture unaffected. Typing in text fields was blocked by the zombie instance. Production (Vercel) uses no StrictMode double-invocation, so only one instance was ever created.
+- **Fix 1** (`AppLayout.tsx`): Set `initialized.current = true` **synchronously** before calling `initEmulator()` so the second StrictMode invocation hits the guard and bails out immediately.
+- **Fix 2** (`emulatorService.ts`): Added `private initializing: boolean` flag as a service-level safeguard. `initialize()` returns early if `this.initializing` is already true, preventing a concurrent call from creating a second mGBA instance regardless of caller.
+
 ### ⚠️ Known: FireRed first-save incomplete sections
 - FireRed's very first in-game save may not write all 14 sections to the save file. Section ID 1 (party data) can be missing, causing `readPartyPokemon` to return null.
 - **Workaround**: The user must save in-game at least **twice** before rewards will work. The app shows a descriptive error: *"No Pokemon in party slot X. Try saving in-game again — early saves may be incomplete."*
@@ -569,6 +574,9 @@ Tests use synthetic save buffers with R/S-style offsets (game code 0). `detectGa
 46. **Tutorial Modal Addition**: Implemented a first-time visitor onboarding `TutorialModal` overlay explaining the core mechanics (load ROM, complete tasks, claim rewards).
 47. **UI Zustand Store**: Created `useUiStore` using `persist` middleware mapped to `gba-ui-prefs` in localStorage to track when a user checks "Never show this again" on the tutorial modal.
 48. **One-Handed Mode**: Implemented a `mobileControlAlignment` setting in `useUiStore` (defaulting to 'default', with 'left' and 'right' options). Added a toggle button in `GbaControls.tsx` visible only on mobile, pushing the D-pad and Action buttons entirely to the left or right side with CSS Flexbox for ergonomic one-handed use, while retaining strict touch handling.
+
+### Session 9: Bug Fix — Text Input Blocked in Dev Mode
+49. **StrictMode double-init fix**: Diagnosed and fixed a bug where text fields (task title, description) could not be typed in when running locally (`npm run dev`) but worked fine on Vercel. Root cause was React StrictMode double-invoking `useEffect` in `AppLayout`, causing two concurrent `mGBA({ canvas })` calls and creating an orphaned SDL2 instance that kept capturing keyboard events. Fix: set `initialized.current = true` synchronously before the async call in `AppLayout.tsx`, plus added `initializing` guard flag in `EmulatorServiceImpl.initialize()`.
 
 ---
 

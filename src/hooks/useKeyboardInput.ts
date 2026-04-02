@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
-import { emulatorService } from '../services/emulatorService';
-import type { GbaButton } from '../types/emulator';
+import { useEffect } from "react";
+import { emulatorService } from "../services/emulatorService";
+import type { GbaButton } from "../types/emulator";
 
 /**
  * Maps DOM KeyboardEvent.key values to GBA button names.
@@ -14,20 +14,20 @@ import type { GbaButton } from '../types/emulator';
  * s / S                   -> R (right shoulder)
  */
 const MAPPED_KEYS: Readonly<Record<string, GbaButton>> = {
-  ArrowUp:    'Up',
-  ArrowDown:  'Down',
-  ArrowLeft:  'Left',
-  ArrowRight: 'Right',
-  x:          'A',
-  X:          'A',
-  z:          'B',
-  Z:          'B',
-  Enter:      'Start',
-  Backspace:  'Select',
-  a:          'L',
-  A:          'L',
-  s:          'R',
-  S:          'R',
+  ArrowUp: "Up",
+  ArrowDown: "Down",
+  ArrowLeft: "Left",
+  ArrowRight: "Right",
+  x: "A",
+  X: "A",
+  z: "B",
+  Z: "B",
+  Enter: "Start",
+  Backspace: "Select",
+  a: "L",
+  A: "L",
+  s: "R",
+  S: "R",
 };
 
 /**
@@ -37,7 +37,7 @@ const MAPPED_KEYS: Readonly<Record<string, GbaButton>> = {
  */
 function isTypingTarget(e: KeyboardEvent): boolean {
   const tag = (e.target as HTMLElement)?.tagName;
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
   if ((e.target as HTMLElement)?.isContentEditable) return true;
   return false;
 }
@@ -69,30 +69,38 @@ export function useKeyboardInput(): void {
     // focused so the user can actually type. Re-enable when focus leaves.
     function handleFocusIn(e: FocusEvent) {
       const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'
-          || (e.target as HTMLElement)?.isContentEditable) {
+      if (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
+        (e.target as HTMLElement)?.isContentEditable
+      ) {
         emulatorService.toggleInput(false);
       }
     }
 
     function handleFocusOut(e: FocusEvent) {
       const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'
-          || (e.target as HTMLElement)?.isContentEditable) {
+      if (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
+        (e.target as HTMLElement)?.isContentEditable
+      ) {
         emulatorService.toggleInput(true);
       }
     }
 
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    document.addEventListener('focusin', handleFocusIn);
-    document.addEventListener('focusout', handleFocusOut);
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    document.addEventListener("focusin", handleFocusIn);
+    document.addEventListener("focusout", handleFocusOut);
 
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-      document.removeEventListener('focusin', handleFocusIn);
-      document.removeEventListener('focusout', handleFocusOut);
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      document.removeEventListener("focusin", handleFocusIn);
+      document.removeEventListener("focusout", handleFocusOut);
     };
   }, []);
 }

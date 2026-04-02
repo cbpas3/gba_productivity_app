@@ -34,6 +34,13 @@ export function AppLayout() {
 
   useEffect(() => {
     if (initialized.current) return;
+    // Set the flag synchronously before the async call so that React StrictMode's
+    // double-invocation of effects (dev only) cannot race and create a second
+    // mGBA instance. Without this, both invocations see initialized.current===false
+    // and each creates an SDL2 module; the orphaned first module keeps its keyboard
+    // listeners active, blocking text input even after toggleInput(false) is called
+    // on the second (active) module.
+    initialized.current = true;
     initEmulator();
   }, [initEmulator]);
 

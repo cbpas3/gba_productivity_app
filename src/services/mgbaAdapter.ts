@@ -12,8 +12,8 @@
 // ---------------------------------------------------------------------------
 
 export const MGBA_PATHS = {
-  GAMES: '/data/games',
-  SAVES: '/data/saves',
+  GAMES: "/data/games",
+  SAVES: "/data/saves",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -126,7 +126,9 @@ export interface MgbaModule {
  * Shape of the default export from `@thenick775/mgba-wasm`.
  * Called as `await mGBA({ canvas })` to obtain a live MgbaModule.
  */
-export type MgbaFactory = (options: { canvas: HTMLCanvasElement }) => Promise<MgbaModule>;
+export type MgbaFactory = (options: {
+  canvas: HTMLCanvasElement;
+}) => Promise<MgbaModule>;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -155,7 +157,7 @@ export function deriveFileNames(romFileName: string): {
   savePath: string;
   saveName: string;
 } {
-  const baseName = romFileName.replace(/\.(gba|gbc|gb)$/i, '');
+  const baseName = romFileName.replace(/\.(gba|gbc|gb)$/i, "");
   return {
     romPath: `${MGBA_PATHS.GAMES}/${romFileName}`,
     savePath: `${MGBA_PATHS.SAVES}/${baseName}.sav`,
@@ -174,10 +176,11 @@ export function readFileAsUint8Array(file: File): Promise<Uint8Array> {
       if (reader.result instanceof ArrayBuffer) {
         resolve(new Uint8Array(reader.result));
       } else {
-        reject(new Error('FileReader did not return an ArrayBuffer'));
+        reject(new Error("FileReader did not return an ArrayBuffer"));
       }
     };
-    reader.onerror = () => reject(reader.error ?? new Error('FileReader error'));
+    reader.onerror = () =>
+      reject(reader.error ?? new Error("FileReader error"));
     reader.readAsArrayBuffer(file);
   });
 }
@@ -186,7 +189,7 @@ export function readFileAsUint8Array(file: File): Promise<Uint8Array> {
  * Attempts to create a VFS directory, silently ignoring errors that indicate
  * the directory already exists (errno 44 / EEXIST in Emscripten).
  */
-export function ensureVfsDirectory(fs: MgbaModule['FS'], path: string): void {
+export function ensureVfsDirectory(fs: MgbaModule["FS"], path: string): void {
   try {
     fs.mkdir(path);
   } catch {

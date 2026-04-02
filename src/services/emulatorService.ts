@@ -14,15 +14,19 @@
  *   5. Use getCurrentSave / writeSaveAndReload for save-data manipulation.
  */
 
-import type { IEmulatorService, EmulatorStatus, GbaButton } from '../types/emulator';
-import type { MgbaModule, MgbaFactory } from './mgbaAdapter';
+import type {
+  IEmulatorService,
+  EmulatorStatus,
+  GbaButton,
+} from "../types/emulator";
+import type { MgbaModule, MgbaFactory } from "./mgbaAdapter";
 import {
   MGBA_PATHS,
   deriveFileNames,
   readFileAsUint8Array,
   ensureVfsDirectory,
-} from './mgbaAdapter';
-import { assertCrossOriginIsolated } from '../utils/crossOriginCheck';
+} from "./mgbaAdapter";
+import { assertCrossOriginIsolated } from "../utils/crossOriginCheck";
 
 // ---------------------------------------------------------------------------
 // Implementation
@@ -32,7 +36,8 @@ class EmulatorServiceImpl implements IEmulatorService {
   // Internals -----------------------------------------------------------
 
   private module: MgbaModule | null = null;
-  private status: EmulatorStatus = 'idle';
+  private initializing: boolean = false;
+  private status: EmulatorStatus = "idle";
   private currentRomPath: string | null = null;
   private currentSavePath: string | null = null;
   private currentRomData: Uint8Array | null = null;
@@ -53,31 +58,33 @@ class EmulatorServiceImpl implements IEmulatorService {
    *   to initialise.
    */
   async initialize(canvas: HTMLCanvasElement): Promise<void> {
-    if (this.module !== null) {
-      // Already initialised — idempotent call is safe.
+    if (this.module !== null || this.initializing) {
+      // Already initialised or a concurrent initialisation is in flight.
       return;
     }
 
-    this.setStatus('loading');
+    this.initializing = true;
+    this.setStatus("loading");
 
     try {
       assertCrossOriginIsolated();
 
       // Dynamic import keeps the heavy WASM bundle out of the initial chunk.
-      const mgbaModule = await import('@thenick775/mgba-wasm');
+      const mgbaModule = await import("@thenick775/mgba-wasm");
       const mGBA = mgbaModule.default as MgbaFactory;
 
       this.module = await mGBA({ canvas });
       await this.module.FSInit();
 
       // Ensure VFS directory structure exists.
-      ensureVfsDirectory(this.module.FS, '/data');
+      ensureVfsDirectory(this.module.FS, "/data");
       ensureVfsDirectory(this.module.FS, MGBA_PATHS.GAMES);
       ensureVfsDirectory(this.module.FS, MGBA_PATHS.SAVES);
 
-      this.setStatus('idle');
+      this.setStatus("idle");
     } catch (err) {
-      this.setStatus('error');
+      this.initializing = false;
+      this.setStatus("error");
       // Re-throw so the caller (typically a React component) can surface the
       // error to the user.
       throw err instanceof Error ? err : new Error(String(err));
@@ -94,7 +101,7 @@ class EmulatorServiceImpl implements IEmulatorService {
    */
   async loadRom(file: File): Promise<boolean> {
     this.requireModule();
-    this.setStatus('loading');
+    this.setStatus("loading");
 
     try {
       const { romPath, savePath } = deriveFileNames(file.name);
@@ -109,7 +116,7 @@ class EmulatorServiceImpl implements IEmulatorService {
       if (!accepted) {
         // mGBA rejected the file — remove it from the VFS to keep things tidy.
         this.safeUnlink(romPath);
-        this.setStatus('error');
+        this.setStatus("error");
         return false;
       }
 
@@ -119,12 +126,15 @@ class EmulatorServiceImpl implements IEmulatorService {
 
       // Use the actual save path mGBA chose (may differ from our derivation).
       this.currentSavePath = this.module!.saveName ?? savePath;
-      console.log('[EmulatorService] ROM loaded. savePath =', this.currentSavePath);
+      console.log(
+        "[EmulatorService] ROM loaded. savePath =",
+        this.currentSavePath,
+      );
 
-      this.setStatus('running');
+      this.setStatus("running");
       return true;
     } catch (err) {
-      this.setStatus('error');
+      this.setStatus("error");
       throw err instanceof Error ? err : new Error(String(err));
     }
   }
@@ -208,49 +218,62 @@ class EmulatorServiceImpl implements IEmulatorService {
     this.requireModule();
 
     if (this.currentSavePath === null || this.currentRomPath === null) {
-      throw new Error('No ROM loaded. Cannot write save data without an active game.');
+      throw new Error(
+        "No ROM loaded. Cannot write save data without an active game.",
+      );
     }
 
     const savePath = this.currentSavePath;
-    const romPath  = this.currentRomPath;
+    const romPath = this.currentRomPath;
 
-    console.log('[EmulatorService] writeSaveAndReload: START injecting', saveData.byteLength, 'bytes →', savePath);
+    console.log(
+      "[EmulatorService] writeSaveAndReload: START injecting",
+      saveData.byteLength,
+      "bytes →",
+      savePath,
+    );
 
     // 1. Disable auto-save-state restore.
     try {
       this.module!.setCoreSettings({ restoreAutoSaveStateOnLoad: false });
-      console.log('[EmulatorService] step 1: setCoreSettings OK');
-    } catch (e) { console.warn('[EmulatorService] step 1: setCoreSettings failed', e); }
+      console.log("[EmulatorService] step 1: setCoreSettings OK");
+    } catch (e) {
+      console.warn("[EmulatorService] step 1: setCoreSettings failed", e);
+    }
 
     // 2. Write our save BEFORE quitGame (critical — must succeed).
     this.module!.FS.writeFile(savePath, saveData);
-    console.log('[EmulatorService] step 2: FS.writeFile (pre-quit) OK');
+    console.log("[EmulatorService] step 2: FS.writeFile (pre-quit) OK");
 
     // 3. Disable DOM input to prevent focusEventHandlerFunc crash.
     try {
       this.module!.toggleInput(false);
-      console.log('[EmulatorService] step 3: toggleInput(false) OK');
-    } catch (e) { console.warn('[EmulatorService] step 3: toggleInput failed', e); }
+      console.log("[EmulatorService] step 3: toggleInput(false) OK");
+    } catch (e) {
+      console.warn("[EmulatorService] step 3: toggleInput failed", e);
+    }
 
     // 4. quitGame.
     try {
       this.module!.quitGame();
-      console.log('[EmulatorService] step 4: quitGame() OK');
-    } catch (e) { console.error('[EmulatorService] step 4: quitGame() FAILED', e); }
+      console.log("[EmulatorService] step 4: quitGame() OK");
+    } catch (e) {
+      console.error("[EmulatorService] step 4: quitGame() FAILED", e);
+    }
 
     // 5. Wait for WASM worker thread to finish save flush.
-    console.log('[EmulatorService] step 5: waiting 1000ms for flush...');
+    console.log("[EmulatorService] step 5: waiting 1000ms for flush...");
     await new Promise<void>((resolve) => setTimeout(resolve, 1000));
-    console.log('[EmulatorService] step 5: wait complete');
+    console.log("[EmulatorService] step 5: wait complete");
 
     // 6. Write our save AGAIN — guaranteed after any async flush (critical).
     this.module!.FS.writeFile(savePath, saveData);
-    console.log('[EmulatorService] step 6: FS.writeFile (post-flush) OK');
+    console.log("[EmulatorService] step 6: FS.writeFile (post-flush) OK");
 
     // 7. Re-stage ROM (critical — loadGame needs the ROM on VFS).
     if (this.currentRomData !== null) {
       this.module!.FS.writeFile(romPath, this.currentRomData);
-      console.log('[EmulatorService] step 7: ROM re-staged OK');
+      console.log("[EmulatorService] step 7: ROM re-staged OK");
     }
 
     // 8. Delete auto-save state snapshot.
@@ -258,34 +281,49 @@ class EmulatorServiceImpl implements IEmulatorService {
     if (autoSavePath) {
       try {
         this.module!.FS.unlink(autoSavePath);
-        console.log('[EmulatorService] step 8: deleted .ss snapshot', autoSavePath);
-      } catch { /* file may not exist */ }
+        console.log(
+          "[EmulatorService] step 8: deleted .ss snapshot",
+          autoSavePath,
+        );
+      } catch {
+        /* file may not exist */
+      }
     }
     try {
       this.module!.setCoreSettings({ autoSaveStateEnable: false });
-      console.log('[EmulatorService] step 8b: autoSaveStateEnable=false OK');
-    } catch (e) { console.warn('[EmulatorService] step 8b: setCoreSettings failed', e); }
+      console.log("[EmulatorService] step 8b: autoSaveStateEnable=false OK");
+    } catch (e) {
+      console.warn("[EmulatorService] step 8b: setCoreSettings failed", e);
+    }
 
     // 9. Cold-reload the ROM.
     try {
       const accepted = this.module!.loadGame(romPath, savePath);
-      console.log('[EmulatorService] step 9: loadGame() →', accepted);
+      console.log("[EmulatorService] step 9: loadGame() →", accepted);
       if (!accepted) {
-        this.setStatus('error');
-        throw new Error('mGBA rejected the ROM during reload after save injection.');
+        this.setStatus("error");
+        throw new Error(
+          "mGBA rejected the ROM during reload after save injection.",
+        );
       }
     } catch (e) {
-      console.error('[EmulatorService] step 9: loadGame() FAILED', e);
-      this.setStatus('error');
-      try { this.module!.toggleInput(true); } catch { /* restore input */ }
+      console.error("[EmulatorService] step 9: loadGame() FAILED", e);
+      this.setStatus("error");
+      try {
+        this.module!.toggleInput(true);
+      } catch {
+        /* restore input */
+      }
       throw e;
     }
 
     // 10. Re-enable input.
     try {
       this.module!.toggleInput(true);
-      console.log('[EmulatorService] step 10: toggleInput(true) OK');
-    } catch (e) { console.warn('[EmulatorService] step 10: toggleInput failed', e); }
+      console.log("[EmulatorService] step 10: toggleInput(true) OK");
+    } catch (e) {
+      console.warn("[EmulatorService] step 10: toggleInput failed", e);
+    }
 
     // 11. Re-enable auto-save-state.
     try {
@@ -293,37 +331,38 @@ class EmulatorServiceImpl implements IEmulatorService {
         restoreAutoSaveStateOnLoad: true,
         autoSaveStateEnable: true,
       });
-      console.log('[EmulatorService] step 11: auto-save re-enabled OK');
-    } catch (e) { console.warn('[EmulatorService] step 11: setCoreSettings failed', e); }
+      console.log("[EmulatorService] step 11: auto-save re-enabled OK");
+    } catch (e) {
+      console.warn("[EmulatorService] step 11: setCoreSettings failed", e);
+    }
 
     // 12. Persist to IndexedDB.
     try {
       this.module!.FS.writeFile(savePath, saveData);
       await this.module!.FSSync();
-      console.log('[EmulatorService] step 12: FSSync OK');
-    } catch (e) { console.warn('[EmulatorService] step 12: FSSync failed', e); }
+      console.log("[EmulatorService] step 12: FSSync OK");
+    } catch (e) {
+      console.warn("[EmulatorService] step 12: FSSync failed", e);
+    }
 
-    console.log('[EmulatorService] writeSaveAndReload: COMPLETE');
-    this.setStatus('running');
+    console.log("[EmulatorService] writeSaveAndReload: COMPLETE");
+    this.setStatus("running");
   }
 
-
-
   // IEmulatorService — playback control ----------------------------------
-
 
   /**
    * Pauses the running game using mGBA's native pauseGame().
    * Calling pause() when not running is a no-op.
    */
   pause(): void {
-    if (this.module === null || this.status !== 'running') return;
+    if (this.module === null || this.status !== "running") return;
 
     try {
       this.module.pauseGame();
-      this.setStatus('paused');
+      this.setStatus("paused");
     } catch {
-      this.setStatus('paused');
+      this.setStatus("paused");
     }
   }
 
@@ -332,13 +371,13 @@ class EmulatorServiceImpl implements IEmulatorService {
    * Calling resume() when not paused is a no-op.
    */
   async resume(): Promise<void> {
-    if (this.module === null || this.status !== 'paused') return;
+    if (this.module === null || this.status !== "paused") return;
 
     try {
       this.module.resumeGame();
-      this.setStatus('running');
+      this.setStatus("running");
     } catch (err) {
-      this.setStatus('error');
+      this.setStatus("error");
       throw err instanceof Error ? err : new Error(String(err));
     }
   }
@@ -351,7 +390,7 @@ class EmulatorServiceImpl implements IEmulatorService {
    * so no translation is required.
    */
   pressButton(button: GbaButton): void {
-    if (this.module === null || this.status !== 'running') return;
+    if (this.module === null || this.status !== "running") return;
     try {
       this.module.buttonPress(button);
     } catch {
@@ -363,7 +402,7 @@ class EmulatorServiceImpl implements IEmulatorService {
    * Releases a previously pressed button.
    */
   releaseButton(button: GbaButton): void {
-    if (this.module === null || this.status !== 'running') return;
+    if (this.module === null || this.status !== "running") return;
     try {
       this.module.buttonUnpress(button);
     } catch {
@@ -400,7 +439,7 @@ class EmulatorServiceImpl implements IEmulatorService {
   private requireModule(): void {
     if (this.module === null) {
       throw new Error(
-        'EmulatorService has not been initialised. Call initialize(canvas) first.',
+        "EmulatorService has not been initialised. Call initialize(canvas) first.",
       );
     }
   }
