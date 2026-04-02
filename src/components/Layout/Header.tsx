@@ -1,4 +1,5 @@
 import { useEmulatorStore } from '../../store/emulatorStore';
+import { useUiStore } from '../../store/uiStore';
 import type { EmulatorStatus } from '../../types/emulator';
 
 const STATUS_LABELS: Record<EmulatorStatus, string> = {
@@ -12,6 +13,7 @@ const STATUS_LABELS: Record<EmulatorStatus, string> = {
 export function Header() {
   const status   = useEmulatorStore((s) => s.status);
   const gameName = useEmulatorStore((s) => s.gameName);
+  const setIsTaskBoardOpen = useUiStore((s) => s.setIsTaskBoardOpen);
 
   return (
     <header className="app-header" role="banner">
@@ -20,6 +22,17 @@ export function Header() {
         {/* Decorative corner ornament */}
         <div className="app-header__ornament app-header__ornament--left" aria-hidden>
           {'>>'}
+        </div>
+
+        {/* Desktop Action Group */}
+        <div className="app-header__desktop-actions">
+          <button 
+            className="btn btn--primary app-header__board-btn"
+            onClick={() => setIsTaskBoardOpen(true)}
+            aria-label="Open Kanban Quest Board"
+          >
+            📋 BOARD
+          </button>
         </div>
 
         {/* Title block */}
@@ -165,6 +178,26 @@ export function Header() {
             transparent 100%
           );
           opacity: 0.6;
+        }
+
+        .app-header__desktop-actions {
+          display: none;
+          min-width: 110px;
+          flex-shrink: 0;
+        }
+
+        .app-header__board-btn {
+          font-size: 0.5rem;
+          padding: var(--space-2) var(--space-3);
+          box-shadow: var(--shadow-cyan-sm);
+        }
+
+        @media (min-width: 1024px) {
+          .app-header__desktop-actions {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+          }
         }
 
         @media (max-width: 768px) {

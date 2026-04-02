@@ -8,6 +8,8 @@ interface UiState {
   setHasSeenTutorial: (hasSeen: boolean) => void;
   mobileControlAlignment: MobileControlAlignment;
   setMobileControlAlignment: (alignment: MobileControlAlignment) => void;
+  isTaskBoardOpen: boolean;
+  setIsTaskBoardOpen: (isOpen: boolean) => void;
 }
 
 export const useUiStore = create<UiState>()(
@@ -17,6 +19,8 @@ export const useUiStore = create<UiState>()(
       setHasSeenTutorial: (hasSeen) => set({ hasSeenTutorial: hasSeen }),
       mobileControlAlignment: 'default',
       setMobileControlAlignment: (alignment) => set({ mobileControlAlignment: alignment }),
+      isTaskBoardOpen: false,
+      setIsTaskBoardOpen: (isOpen) => set({ isTaskBoardOpen: isOpen }),
     }),
     {
       name: 'gba-ui-prefs',

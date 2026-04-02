@@ -25,6 +25,7 @@ interface TaskState {
   addTask: (title: string, description: string, priority: TaskPriority, recurrence?: TaskRecurrence) => void;
   completeTask: (id: string) => void;
   deleteTask: (id: string) => void;
+  updateTaskPriority: (id: string, newPriority: TaskPriority) => void;
   resetRecurringTasks: () => void;
 }
 
@@ -74,6 +75,12 @@ export const useTaskStore = create<TaskState>()(
       deleteTask: (id) => {
         set((state) => ({ tasks: state.tasks.filter((t) => t.id !== id) }));
         eventBus.emit('task:deleted', { taskId: id });
+      },
+
+      updateTaskPriority: (id, newPriority) => {
+        set((state) => ({
+          tasks: state.tasks.map((t) => (t.id === id ? { ...t, priority: newPriority } : t)),
+        }));
       },
 
       resetRecurringTasks: () => {
