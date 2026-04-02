@@ -30,14 +30,20 @@ export function TaskItem({ task }: TaskItemProps) {
   const deleteTask   = useTaskStore((s) => s.deleteTask);
 
   const isCompleted = task.status === 'completed';
+  const isRecurring = task.recurrence && task.recurrence !== 'none';
 
   return (
-    <div className={`task-item ${isCompleted ? 'task-item--completed' : ''} animate-fade-in-up`}>
+    <div className={`task-item ${isCompleted ? 'task-item--completed' : ''} ${isRecurring ? 'task-item--recurring' : ''} animate-fade-in-up`}>
       <div className="task-item__top">
         <div className="task-item__meta">
           <span className={`badge ${PRIORITY_COLORS[task.priority]}`}>
             {task.priority}
           </span>
+          {isRecurring && (
+            <span className="badge badge--recurring">
+              {task.recurrence === 'daily' ? 'DAILY' : 'WEEKLY'}
+            </span>
+          )}
           <span className="task-item__status">
             {STATUS_LABEL[task.status]}
           </span>
@@ -52,6 +58,11 @@ export function TaskItem({ task }: TaskItemProps) {
             >
               ✓ DONE
             </button>
+          )}
+          {isCompleted && isRecurring && (
+            <span className="task-item__reset-label">
+              🔁 {task.recurrence === 'daily' ? 'Resets Tomorrow' : 'Resets Next Week'}
+            </span>
           )}
           <button
             className="btn btn--danger task-item__btn"
@@ -137,6 +148,20 @@ export function TaskItem({ task }: TaskItemProps) {
           font-size: 1.25rem;
           color: var(--color-text-bright);
           word-break: break-word;
+        }
+        .badge--recurring {
+          background: #4527a0;
+          color: var(--color-accent-cyan);
+          border-color: #651fff;
+        }
+        .task-item__reset-label {
+          font-family: var(--font-pixel);
+          font-size: 0.4rem;
+          color: var(--color-accent-blue);
+          padding: 4px 8px;
+          border: 1px solid rgba(56, 189, 248, 0.4);
+          border-radius: var(--radius-sm);
+          background: rgba(56, 189, 248, 0.1);
         }
         .task-item__title--done {
           color: var(--color-text-muted);

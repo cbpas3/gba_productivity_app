@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { TaskPriority } from '../../types/task';
+import type { TaskPriority, TaskRecurrence } from '../../types/task';
 import { useTaskStore } from '../../store/taskStore';
 
 const PRIORITY_OPTIONS: { value: TaskPriority; label: string; icon: string }[] = [
@@ -22,16 +22,18 @@ export function TaskForm() {
   const [title,       setTitle]       = useState('');
   const [description, setDescription] = useState('');
   const [priority,    setPriority]    = useState<TaskPriority>('medium');
+  const [recurrence,  setRecurrence]  = useState<TaskRecurrence>('none');
   const [submitted,   setSubmitted]   = useState(false);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmedTitle = title.trim();
     if (!trimmedTitle) return;
-    addTask(trimmedTitle, description.trim(), priority);
+    addTask(trimmedTitle, description.trim(), priority, recurrence);
     setTitle('');
     setDescription('');
     setPriority('medium');
+    setRecurrence('none');
     setSubmitted(true);
     setTimeout(() => setSubmitted(false), 1200);
   }
@@ -83,6 +85,20 @@ export function TaskForm() {
               {opt.icon} {opt.label}
             </option>
           ))}
+        </select>
+      </div>
+
+      <div className="task-form__field">
+        <label className="label" htmlFor="task-recurrence">Recurrence</label>
+        <select
+          id="task-recurrence"
+          className="input"
+          value={recurrence}
+          onChange={(e) => setRecurrence(e.target.value as TaskRecurrence)}
+        >
+          <option value="none">None (One-off)</option>
+          <option value="daily">Daily Quest (🔁 Resets at midnight)</option>
+          <option value="weekly">Weekly Quest (🔁 Resets Monday)</option>
         </select>
       </div>
 

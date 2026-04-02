@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Task, TaskPriority } from '../types/task';
+import type { Task, TaskPriority, TaskRecurrence } from '../types/task';
 import type { Reward } from '../types/reward';
 import { eventBus } from './eventBus';
 import { useRewardStore } from './rewardStore';
@@ -22,9 +22,10 @@ function buildReward(priority: TaskPriority): Reward {
 
 interface TaskState {
   tasks: Task[];
-  addTask: (title: string, description: string, priority: TaskPriority) => void;
+  addTask: (title: string, description: string, priority: TaskPriority, recurrence?: TaskRecurrence) => void;
   completeTask: (id: string) => void;
   deleteTask: (id: string) => void;
+  resetRecurringTasks: () => void;
 }
 
 export const useTaskStore = create<TaskState>()(
@@ -32,14 +33,16 @@ export const useTaskStore = create<TaskState>()(
     (set, get) => ({
       tasks: [],
 
-      addTask: (title, description, priority) => {
+      addTask: (title, description, priority, recurrence = 'none') => {
         const task: Task = {
           id: crypto.randomUUID(),
           title,
           description,
           priority,
           status: 'pending',
+          recurrence,
           createdAt: Date.now(),
+          lastCompletedAt: null,
           rewardClaimed: false,
         };
         set((state) => ({ tasks: [...state.tasks, task] }));
@@ -55,6 +58,7 @@ export const useTaskStore = create<TaskState>()(
           ...task,
           status: 'completed',
           completedAt: Date.now(),
+          lastCompletedAt: Date.now(),
           rewardClaimed: true,
         };
 
@@ -70,6 +74,43 @@ export const useTaskStore = create<TaskState>()(
       deleteTask: (id) => {
         set((state) => ({ tasks: state.tasks.filter((t) => t.id !== id) }));
         eventBus.emit('task:deleted', { taskId: id });
+      },
+
+      resetRecurringTasks: () => {
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+        const dayOfWeek = now.getDay();
+        const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+        const thisMondayStart = todayStart - daysSinceMonday * 86400000;
+
+        let changed = false;
+        const tasks = get().tasks.map((task) => {
+          if (task.status !== 'completed' || !task.recurrence || task.recurrence === 'none') {
+            return task;
+          }
+
+          let needsReset = false;
+          if (task.recurrence === 'daily') {
+            needsReset = (task.lastCompletedAt || 0) < todayStart;
+          } else if (task.recurrence === 'weekly') {
+            needsReset = (task.lastCompletedAt || 0) < thisMondayStart;
+          }
+
+          if (needsReset) {
+            changed = true;
+            return {
+              ...task,
+              status: 'pending',
+              rewardClaimed: false,
+              lastCompletedAt: null,
+            } as Task;
+          }
+          return task;
+        });
+
+        if (changed) {
+          set({ tasks });
+        }
       },
     }),
     {

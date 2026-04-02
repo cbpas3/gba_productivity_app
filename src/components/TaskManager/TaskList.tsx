@@ -22,8 +22,16 @@ export function TaskList() {
 
   // Show pending first, then completed; within each group by createdAt desc
   const sorted = [...filtered].sort((a, b) => {
-    if (a.status === b.status) return b.createdAt - a.createdAt;
-    return a.status === 'completed' ? 1 : -1;
+    if (a.status !== b.status) return a.status === 'completed' ? 1 : -1;
+    
+    // Group recurring tasks safely at the top of their status bucket
+    const aIsRecurring = a.recurrence && a.recurrence !== 'none';
+    const bIsRecurring = b.recurrence && b.recurrence !== 'none';
+    
+    if (aIsRecurring && !bIsRecurring) return -1;
+    if (!aIsRecurring && bIsRecurring) return 1;
+
+    return b.createdAt - a.createdAt;
   });
 
   const pendingCount   = tasks.filter((t) => t.status === 'pending').length;

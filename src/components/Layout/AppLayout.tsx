@@ -6,6 +6,7 @@ import { RewardDisplay } from "../RewardPanel";
 import { EmulatorCanvas, GbaControls, RomLoader } from "../EmulatorView";
 import { emulatorService } from "../../services/emulatorService";
 import { useEmulatorStore } from "../../store/emulatorStore";
+import { useTaskStore } from "../../store/taskStore";
 
 export function AppLayout() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -13,6 +14,7 @@ export function AppLayout() {
   const setStatus = useEmulatorStore((s) => s.setStatus);
   const setError = useEmulatorStore((s) => s.setError);
   const errorMessage = useEmulatorStore((s) => s.errorMessage);
+  const resetRecurringTasks = useTaskStore((s) => s.resetRecurringTasks);
 
   const initEmulator = useCallback(() => {
     if (!canvasRef.current) return;
@@ -43,6 +45,14 @@ export function AppLayout() {
     initialized.current = true;
     initEmulator();
   }, [initEmulator]);
+
+  // Handle recurring quest un-checking bounds
+  useEffect(() => {
+    resetRecurringTasks();
+    const handleFocus = () => resetRecurringTasks();
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, [resetRecurringTasks]);
 
   return (
     <div className="app-layout">

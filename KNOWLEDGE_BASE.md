@@ -577,6 +577,7 @@ Tests use synthetic save buffers with R/S-style offsets (game code 0). `detectGa
 
 ### Session 9: Bug Fix — Text Input Blocked in Dev Mode
 49. **StrictMode double-init fix**: Diagnosed and fixed a bug where text fields (task title, description) could not be typed in when running locally (`npm run dev`) but worked fine on Vercel. Root cause was React StrictMode double-invoking `useEffect` in `AppLayout`, causing two concurrent `mGBA({ canvas })` calls and creating an orphaned SDL2 instance that kept capturing keyboard events. Fix: set `initialized.current = true` synchronously before the async call in `AppLayout.tsx`, plus added `initializing` guard flag in `EmulatorServiceImpl.initialize()`.
+50. **Recurring Tasks**: Implemented Daily and Weekly recurring quests. Updated `Task` type and `taskStore` with `recurrence` and `lastCompletedAt`. Replaced checkmarks on completed recurring quests with "🔁 Resets Tomorrow" or "🔁 Resets Next Week" locked states. Added `resetRecurringTasks` hook to `AppLayout` triggered on mount and window focus to automatically recycle quests based on local midnight/Monday bounds.
 
 ---
 
