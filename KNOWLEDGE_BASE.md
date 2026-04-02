@@ -120,7 +120,7 @@ User clicks "CLAIM REWARDS" button (in RewardDisplay)
 
 ## 4. Task Priority → Reward Mapping
 
-Defined in `src/store/taskStore.ts → buildReward()`. All rewards target **party slot 0** (lead Pokemon). All priorities grant EXP as a **percentage of the gap to the next level**.
+Defined in `src/store/taskStore.ts → buildReward()`. All rewards target **party slot 0** (lead party member). All priorities grant EXP as a **percentage of the gap to the next level**.
 
 | Priority | Reward Type | Effect |
 |---|---|---|
@@ -380,7 +380,7 @@ Thin adapter class that implements `IPokemonCryptoService`, delegating to `lib/g
 
 ## 9. Zustand Stores
 
-### `taskStore` (persisted as `'gba-tasks'`)
+### `taskStore` (localStorage key: `'gba-tasks'`)
 ```ts
 tasks: Task[]
 addTask(title, description, priority)  // emits task:created
@@ -388,7 +388,7 @@ completeTask(id)                        // emits task:completed, pools reward vi
 deleteTask(id)                          // emits task:deleted
 ```
 
-### `rewardStore` (persisted as `'gba-rewards'`)
+### `rewardStore` (localStorage key: `'gba-rewards'`)
 ```ts
 pendingRewards: Reward[]
 rewardHistory: RewardHistoryEntry[]   // capped at 100 entries
@@ -556,6 +556,14 @@ Tests use synthetic save buffers with R/S-style offsets (game code 0). `detectGa
 37. **ROM/save file size validation**: `RomLoader.tsx` now checks file sizes before reading: ROM max 32 MB, save max 256 KB. Shows descriptive error if exceeded.
 38. **Reward history cap**: `rewardStore.markBatchApplied()` trims `rewardHistory` to the last 100 entries to prevent unbounded localStorage growth.
 
+### Session 7: Legal / Branding Cleanup
+39. **Project renamed**: App is now **Game Productivity App** (was "GBA Productivity Quest"). Updated in `index.html` (title, iOS PWA title), `public/manifest.webmanifest` (name, short_name, description), `Header.tsx` (h1, tagline), `package.json` (name field), and `README.md`.
+40. **"Pokemon" removed from user-facing copy**: Tagline changed from "Power up your Pokemon" → "Level up your party". Manifest description no longer references Pokemon. README about/features sections updated. "Pokemon" is retained only in the supported games list (game titles) and internal technical docs (Gen III binary format sections).
+41. **In-UI ROM disclaimer added** (`RomLoader.tsx`): *"You must own a legal copy of any ROM file you load. This app does not distribute ROM files."* displayed below the format hint.
+42. **mGBA attribution footer added** (`AppLayout.tsx`): Persistent footer crediting mGBA (MPL-2.0) and mgba-wasm, font authors (Press Start 2P by Christian Robertson, VT323 by Peter Hull, both SIL OFL 1.1), and a Nintendo non-affiliation disclaimer.
+43. **README Credits & Licenses section added**: Full attribution for mGBA, both fonts, Pokémon trademark notice, and Game Boy Advance trademark notice.
+44. **Trademark notices**: "Game Boy Advance" is a trademark of Nintendo Co., Ltd. — noted in footer and README. "Pokémon" is a registered trademark of Nintendo/Creatures Inc./GAME FREAK inc. — noted in README credits.
+
 ---
 
 ## 14. Next Steps (Suggested)
@@ -566,5 +574,5 @@ Tests use synthetic save buffers with R/S-style offsets (game code 0). `detectGa
 
 3. **PWA enhancements** — add offline fallback page, background sync for task persistence, push notifications for task reminders, and app update prompts when the service worker detects a new version.
 
-4. **Service worker cache versioning** — `CACHE_NAME = 'gba-quest-v1'` is hardcoded. Consider injecting a build hash at build time or using `vite-plugin-pwa` for automatic cache busting on deploys.
+4. **Service worker cache versioning** — `CACHE_NAME = 'gba-quest-v1'` is hardcoded in `public/sw.js`. Consider updating the name to match the new branding and/or injecting a build hash at build time (or using `vite-plugin-pwa`) for automatic cache busting on deploys.
 
