@@ -6,6 +6,10 @@ interface EmulatorStoreState extends EmulatorState {
   setRomLoaded: (name: string) => void;
   setError: (msg: string) => void;
   reset: () => void;
+  isFastForward: boolean;
+  toggleFastForward: () => void;
+  isFullscreen: boolean;
+  setIsFullscreen: (isFs: boolean) => void;
 }
 
 const initialState: EmulatorState = {
@@ -35,4 +39,10 @@ export const useEmulatorStore = create<EmulatorStoreState>()((set) => ({
     }),
 
   reset: () => set({ ...initialState }),
+
+  isFastForward: false,
+  toggleFastForward: () => set((s) => ({ isFastForward: !s.isFastForward })),
+
+  isFullscreen: false,
+  setIsFullscreen: (isFs) => set({ isFullscreen: isFs }),
 }));

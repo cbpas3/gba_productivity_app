@@ -107,6 +107,14 @@ export interface MgbaModule {
   setVolume(percent: number): void;
   getVolume(): number;
 
+  // Speed control --------------------------------------------------------
+
+  /** Sets the fast-forward multiplier (0 = uncapped, 2 = 2x, etc.). */
+  setFastForwardMultiplier?(multiplier: number): void;
+
+  /** Alternative: sets fast-forward ratio as a float (e.g. 2.0). */
+  setFastForwardRatio?(ratio: number): void;
+
   // Emscripten FS --------------------------------------------------------
 
   FS: {

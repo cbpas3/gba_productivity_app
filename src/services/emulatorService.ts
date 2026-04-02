@@ -81,6 +81,7 @@ class EmulatorServiceImpl implements IEmulatorService {
       ensureVfsDirectory(this.module.FS, MGBA_PATHS.GAMES);
       ensureVfsDirectory(this.module.FS, MGBA_PATHS.SAVES);
 
+      this.initializing = false;
       this.setStatus("idle");
     } catch (err) {
       this.initializing = false;
@@ -420,6 +421,27 @@ class EmulatorServiceImpl implements IEmulatorService {
       this.module.toggleInput(enabled);
     } catch {
       // Non-fatal.
+    }
+  }
+
+  // IEmulatorService — speed control --------------------------------------
+
+  /**
+   * Enables or disables fast-forward (2x speed).
+   * Tries multiple mGBA APIs for broad compatibility.
+   */
+  setFastForward(enabled: boolean): void {
+    if (this.module === null) return;
+    try {
+      if (typeof this.module.setFastForwardMultiplier === 'function') {
+        this.module.setFastForwardMultiplier(enabled ? 2 : 1);
+      } else if (typeof this.module.setFastForwardRatio === 'function') {
+        this.module.setFastForwardRatio(enabled ? 2.0 : 1.0);
+      } else {
+        this.module.setCoreSettings({ fastForwardMultiplier: enabled ? 2 : 1 });
+      }
+    } catch {
+      // Non-fatal — speed control not available on this build.
     }
   }
 

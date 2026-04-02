@@ -19,6 +19,7 @@ export interface IEmulatorService {
   pressButton(button: GbaButton): void;
   releaseButton(button: GbaButton): void;
   toggleInput(enabled: boolean): void;
+  setFastForward(enabled: boolean): void;
   getStatus(): EmulatorStatus;
 }
 

@@ -10,11 +10,17 @@ import { useTaskStore } from "../../store/taskStore";
 
 export function AppLayout() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const emulatorWrapRef = useRef<HTMLDivElement>(null);
   const initialized = useRef(false);
   const setStatus = useEmulatorStore((s) => s.setStatus);
   const setError = useEmulatorStore((s) => s.setError);
   const errorMessage = useEmulatorStore((s) => s.errorMessage);
   const resetRecurringTasks = useTaskStore((s) => s.resetRecurringTasks);
+
+  const isFastForward = useEmulatorStore((s) => s.isFastForward);
+  const toggleFastForward = useEmulatorStore((s) => s.toggleFastForward);
+  const isFullscreen = useEmulatorStore((s) => s.isFullscreen);
+  const setIsFullscreen = useEmulatorStore((s) => s.setIsFullscreen);
 
   const initEmulator = useCallback(() => {
     if (!canvasRef.current) return;
@@ -26,6 +32,11 @@ export function AppLayout() {
       .then(() => {
         initialized.current = true;
         setStatus("idle");
+        // Re-apply persisted fast-forward state to the freshly ready module.
+        // The isFastForward effect fires at mount before the module exists, so
+        // the correct speed must be set here after a successful initialisation
+        // (and after any RETRY).
+        emulatorService.setFastForward(useEmulatorStore.getState().isFastForward);
       })
       .catch((err: unknown) => {
         initialized.current = false;
@@ -53,6 +64,40 @@ export function AppLayout() {
     window.addEventListener("focus", handleFocus);
     return () => window.removeEventListener("focus", handleFocus);
   }, [resetRecurringTasks]);
+
+  // Sync fast-forward state with service
+  useEffect(() => {
+    emulatorService.setFastForward(isFastForward);
+  }, [isFastForward]);
+
+  // Track fullscreen changes from browser chrome (Escape key, etc.)
+  useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener("fullscreenchange", handleFsChange);
+    return () => document.removeEventListener("fullscreenchange", handleFsChange);
+  }, [setIsFullscreen]);
+
+  const handleToggleFullscreen = useCallback(async () => {
+    if (!emulatorWrapRef.current) return;
+    try {
+      if (!document.fullscreenElement) {
+        await emulatorWrapRef.current.requestFullscreen();
+        // Attempt landscape lock on mobile
+        try {
+          await (screen.orientation as any).lock('landscape');
+        } catch { /* not supported or not allowed */ }
+      } else {
+        await document.exitFullscreen();
+      }
+    } catch {
+      // If the promise rejects no fullscreenchange event fires, so force-sync
+      // the store from the actual browser state to prevent a permanent mismatch
+      // where the button shows "EXIT FS" but the browser is not in fullscreen.
+      setIsFullscreen(!!document.fullscreenElement);
+    }
+  }, [setIsFullscreen]);
 
   return (
     <div className="app-layout">
@@ -97,7 +142,7 @@ export function AppLayout() {
             </h2>
             <hr className="pixel-divider" />
 
-            <div className="app-layout__emulator-inner">
+            <div ref={emulatorWrapRef} className={`app-layout__emulator-inner ${isFullscreen ? 'is-fullscreen' : ''}`}>
               <EmulatorCanvas ref={canvasRef} />
               {errorMessage && (
                 <div className="app-layout__emu-error">
@@ -113,6 +158,25 @@ export function AppLayout() {
                   </button>
                 </div>
               )}
+
+              {/* Emulator Toolbar */}
+              <div className="emu-toolbar">
+                <button
+                  className={`btn emu-toolbar__btn ${isFastForward ? 'emu-toolbar__btn--active' : ''}`}
+                  onClick={toggleFastForward}
+                  title={isFastForward ? 'Normal Speed (1x)' : 'Fast Forward (2x)'}
+                >
+                  {isFastForward ? '⏩ 2x' : '▶ 1x'}
+                </button>
+                <button
+                  className={`btn emu-toolbar__btn ${isFullscreen ? 'emu-toolbar__btn--active' : ''}`}
+                  onClick={handleToggleFullscreen}
+                  title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
+                >
+                  {isFullscreen ? '✖ EXIT FS' : '🔲 FULLSCREEN'}
+                </button>
+              </div>
+
               <GbaControls />
               <RomLoader />
             </div>
@@ -232,6 +296,129 @@ export function AppLayout() {
           text-align: center;
           line-height: 1.6;
           word-break: break-word;
+        }
+
+        /* ── Emulator Toolbar ── */
+        .emu-toolbar {
+          display: flex;
+          gap: var(--space-2);
+          width: 100%;
+          justify-content: center;
+        }
+        .emu-toolbar__btn {
+          font-family: var(--font-pixel);
+          font-size: 0.45rem;
+          padding: var(--space-2) var(--space-3);
+          background: var(--color-surface-body);
+          border: 1px solid var(--color-border-subtle);
+          color: var(--color-text-muted);
+          cursor: pointer;
+          transition: all var(--transition-fast);
+          border-radius: var(--radius-sm);
+        }
+        .emu-toolbar__btn:hover {
+          border-color: var(--color-border-bright);
+          color: var(--color-text-primary);
+        }
+        .emu-toolbar__btn--active {
+          background: var(--color-purple-dark);
+          border-color: var(--color-purple-glow);
+          color: var(--color-accent-cyan);
+          box-shadow: var(--shadow-cyan-sm);
+        }
+
+        /* ── Fullscreen mode ── */
+        /* Include :fullscreen / :-webkit-full-screen so the layout is correct
+           in the brief gap between the browser entering fullscreen and React
+           re-rendering the .is-fullscreen class onto the element. */
+        .app-layout__emulator-inner.is-fullscreen,
+        .app-layout__emulator-inner:fullscreen,
+        .app-layout__emulator-inner:-webkit-full-screen {
+          position: relative;
+          background: #000;
+          width: 100%;
+          height: 100%;
+          overflow: hidden;
+        }
+        /* Override EmulatorCanvas hardcoded 480×320 sizing */
+        .app-layout__emulator-inner.is-fullscreen .emulator-canvas {
+          width: 100% !important;
+          height: 100% !important;
+        }
+        .app-layout__emulator-inner.is-fullscreen .emulator-canvas__screen-wrap {
+          width: 100% !important;
+          height: 100% !important;
+          border: none !important;
+          border-radius: 0 !important;
+          box-shadow: none !important;
+        }
+        .app-layout__emulator-inner.is-fullscreen .emulator-canvas__canvas {
+          width: 100% !important;
+          height: 100% !important;
+          object-fit: contain;
+          image-rendering: pixelated;
+        }
+        .app-layout__emulator-inner.is-fullscreen .emulator-canvas__placeholder {
+          display: none;
+        }
+        .app-layout__emulator-inner.is-fullscreen .emu-toolbar {
+          position: absolute;
+          top: var(--space-2);
+          right: var(--space-2);
+          z-index: 100;
+          width: auto;
+        }
+        /* Desktop fullscreen: hide on-screen controller — keyboard is available */
+        @media (min-width: 769px) {
+          .app-layout__emulator-inner.is-fullscreen .gba-controls {
+            display: none;
+          }
+        }
+
+        /* Mobile fullscreen: transparent ghost controls spread across the bottom */
+        @media (max-width: 768px) {
+          .app-layout__emulator-inner.is-fullscreen .gba-controls {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            background: transparent;
+            backdrop-filter: none;
+            border: none !important;
+            box-shadow: none !important;
+            border-radius: 0;
+            padding: var(--space-3) var(--space-4);
+          }
+          /* Always use spread layout in fullscreen regardless of one-handed setting */
+          .app-layout__emulator-inner.is-fullscreen .gba-controls__body {
+            justify-content: space-between !important;
+          }
+          /* Hide the one-handed toggle — irrelevant in landscape fullscreen */
+          .app-layout__emulator-inner.is-fullscreen .gba-controls__alignment-toggle {
+            display: none !important;
+          }
+          /* Ghost-out all interactive elements so the game shows through */
+          .app-layout__emulator-inner.is-fullscreen .gba-controls__dpad-btn,
+          .app-layout__emulator-inner.is-fullscreen .gba-controls__dpad-center,
+          .app-layout__emulator-inner.is-fullscreen .gba-controls__action,
+          .app-layout__emulator-inner.is-fullscreen .gba-controls__shoulder,
+          .app-layout__emulator-inner.is-fullscreen .gba-controls__pill {
+            opacity: 0.35;
+          }
+          /* Briefly brighten on press so there's tactile feedback */
+          .app-layout__emulator-inner.is-fullscreen .gba-controls__dpad-btn:active,
+          .app-layout__emulator-inner.is-fullscreen .gba-controls__action:active,
+          .app-layout__emulator-inner.is-fullscreen .gba-controls__shoulder:active,
+          .app-layout__emulator-inner.is-fullscreen .gba-controls__pill:active {
+            opacity: 0.9;
+          }
+        }
+        .app-layout__emulator-inner.is-fullscreen .rom-loader {
+          display: none;
+        }
+        .app-layout__emulator-inner.is-fullscreen .app-layout__emu-error {
+          display: none;
         }
 
         /* ── Footer ── */

@@ -468,6 +468,38 @@ Typed, singleton event bus. Events:
 - **Fix 1** (`AppLayout.tsx`): Set `initialized.current = true` **synchronously** before calling `initEmulator()` so the second StrictMode invocation hits the guard and bails out immediately.
 - **Fix 2** (`emulatorService.ts`): Added `private initializing: boolean` flag as a service-level safeguard. `initialize()` returns early if `this.initializing` is already true, preventing a concurrent call from creating a second mGBA instance regardless of caller.
 
+### ✅ Fixed: `bulkAddTasks` accepts invalid enum strings, corrupting persisted state (Session 10)
+- **Root cause**: `priority: rt.priority || 'low'` uses `||` which only guards against falsy values — strings like `"urgent"` or `"monthly"` pass through untouched. An unrecognised `priority` value produces `undefined` in `EXP_PERCENT[priority]`, propagating into the reward pipeline with `percent: undefined`.
+- **Fix** (`taskStore.ts`): Added `VALID_PRIORITIES` and `VALID_RECURRENCES` sets; unknown strings now coerce to `'low'` / `'none'` instead of passing through.
+
+### ✅ Fixed: `BulkImportModal` auto-close timer wipes `inputData` mid-type (Session 10)
+- **Root cause**: The 1-second success `setTimeout` was not stored or cleared. If the user closed and re-opened the modal before it fired, the timer would call `setInputData('')` on the newly-opened modal, silently deleting whatever they'd started typing.
+- **Fix** (`BulkImportModal.tsx`): Timer reference stored in `successTimerRef`. Cleared in `handleClose` and in the `useEffect` cleanup.
+
+### ✅ Fixed: Drag-to-Complete on Task Board has no status guard (Session 10)
+- **Root cause**: `handleDropCompleted` called `completeTask(id)` unconditionally for any task dropped on the Completed column. While the store guard prevents double-completion, a `pending` task could be completed by an accidental mis-drop with no undo.
+- **Fix** (`TaskBoardModal.tsx`): Added `task.status === 'pending'` check before calling `completeTask`.
+
+### ✅ Fixed: `in-progress` tasks silently invisible on Task Board (Session 10)
+- **Root cause**: `priorityTasks` filter only included `pending` and `completed+recurring`. Any task with `status === 'in-progress'` matched neither set and disappeared from the board without any indication.
+- **Fix** (`TaskBoardModal.tsx`): Added `t.status === 'in-progress'` to the `priorityTasks` filter so those tasks appear in their priority column.
+
+### ✅ Fixed: `isFullscreen` store permanently de-syncs when `exitFullscreen()` rejects (Session 11)
+- **Root cause**: `handleToggleFullscreen` relied solely on `fullscreenchange` to sync the store. If `exitFullscreen()` threw (e.g. no active fullscreen, Safari quirk), no event fired and `isFullscreen` stayed `true` — locking the UI in fullscreen layout with no exit path visible.
+- **Fix** (`AppLayout.tsx`): Added `setIsFullscreen(!!document.fullscreenElement)` in the outer `catch` block to force-sync from the actual browser state. Added `setIsFullscreen` to the `useCallback` dep array.
+
+### ✅ Fixed: Fullscreen layout flashes unstyled on entry (Session 11)
+- **Root cause**: The `position: relative` rule (required to anchor the absolutely-positioned toolbar and controls) was only applied via the `.is-fullscreen` class, which is set by React after the `fullscreenchange` event. In the brief gap between the browser entering fullscreen and React re-rendering, the layout was unstyled.
+- **Fix** (`AppLayout.tsx`): Added `:fullscreen` and `:-webkit-full-screen` pseudo-class selectors alongside `.is-fullscreen` on the base rule so the layout is correct immediately on entry.
+
+### ✅ Fixed: Fast-forward state not applied after emulator init or RETRY (Session 11)
+- **Root cause**: The `useEffect` that calls `emulatorService.setFastForward(isFastForward)` fires at mount before the mGBA module is ready (the service guards with `module === null` and silently returns). If `isFastForward` was `true` in persisted store on load — or if the user toggled it before a RETRY — the module would start at 1x while the button showed 2x.
+- **Fix** (`AppLayout.tsx`): `emulatorService.setFastForward(useEmulatorStore.getState().isFastForward)` called at the end of the `initialize().then()` callback, ensuring the correct speed is always applied to a freshly ready module.
+
+### ✅ Fixed: `initializing` flag never reset on success, blocking future re-init (Session 11)
+- **Root cause**: `EmulatorServiceImpl.initializing` was reset to `false` in the `catch` block but not on the success path. While `module !== null` covers the normal re-entry guard, if `module` were ever cleared the stuck `true` flag would silently block re-initialization with no error or log.
+- **Fix** (`emulatorService.ts`): Added `this.initializing = false` on the success path before `setStatus("idle")`.
+
 ### ⚠️ Known: FireRed first-save incomplete sections
 - FireRed's very first in-game save may not write all 14 sections to the save file. Section ID 1 (party data) can be missing, causing `readPartyPokemon` to return null.
 - **Workaround**: The user must save in-game at least **twice** before rewards will work. The app shows a descriptive error: *"No Pokemon in party slot X. Try saving in-game again — early saves may be incomplete."*
@@ -593,8 +625,23 @@ Tests use synthetic save buffers with R/S-style offsets (game code 0). `detectGa
 51. **Recurring task stale `completedAt`**: After a daily/weekly task reset, `completedAt` was not cleared — the task showed as "PENDING" but still displayed the old completion timestamp in its footer. Fix: added `completedAt: undefined` to the reset object in `taskStore.resetRecurringTasks`.
 52. **DST-unsafe weekly reset boundary**: `thisMondayStart` was computed by subtracting raw milliseconds (`daysSinceMonday * 86400000`) from today's midnight. Across a DST transition a "day" is 23 or 25 hours, which could skew the boundary by ±1 hour and cause weekly tasks to fail to reset. Fix: switched to calendar arithmetic — `new Date(y, m, d - daysSinceMonday).getTime()`, matching how `todayStart` is already computed.
 53. **`pointerLeave` prematurely released GBA buttons on mobile**: `handlePointerLeave` in `ControlButton` unconditionally called `releaseButton`. With pointer capture active (set on `pointerDown`), `pointerLeave` still fires per spec when a finger drifts outside the element bounds — causing a held button to drop on any slight touch movement. Fix: guard with `hasPointerCapture(e.pointerId)` — only release in `pointerLeave` when capture is not active; active captures are released by `pointerUp`/`pointerCancel`.
-54. **Desktop Quest Board Modal**: Built a full HTML5 drag-and-drop Kanban modal overlay. Added `isTaskBoardOpen` to `uiStore` and `updateTaskPriority` to `taskStore`. The board dynamically segregates tasks into their respective tier columns. Dragging a pending task adjusts its priority/reward instantly, and dragging to the 'Completed' tier triggers a complete. Recurring tasks properly evaluate locking invariants versus standard one-off bounds.
-55. **Bulk JSON Import feature**: Implemented a JSON ingestion overlay via `BulkImportModal.tsx`. Enhanced `taskStore` with `bulkAddTasks` capable of dynamically applying collision-proof UUIDs, overriding legacy status tokens to enforce `'pending'`, and resetting metadata bounds on raw task arrays. Exposed via a specific `isBulkImportOpen` UI variable in `uiStore`, triggered via a new `[ JSON ]` button placed next to the primary Add Quest module.
+### Session 10: Task Board + Bulk Import Features and Fixes
+54. **Desktop Quest Board Modal**: Built a full HTML5 drag-and-drop Kanban modal overlay (`TaskBoardModal.tsx`). Added `isTaskBoardOpen` to `uiStore` and `updateTaskPriority` to `taskStore`. Five columns: four priority tiers + Completed. Dragging a pending task to a priority column updates its priority/reward. Dragging to Completed triggers `completeTask`. Recurring tasks show as locked (🔁) in their column until the next reset cycle.
+55. **Bulk JSON Import feature**: Implemented a JSON ingestion modal (`BulkImportModal.tsx`). Added `bulkAddTasks` to `taskStore` — assigns fresh UUIDs, forces `status: 'pending'`, and resets all metadata. Exposed via `isBulkImportOpen` in `uiStore`, triggered by a `[ JSON ]` button next to the Add Quest form.
+56. **`bulkAddTasks` enum validation**: Invalid `priority`/`recurrence` strings (e.g. `"urgent"`, `"monthly"`) now coerce to safe defaults instead of passing through and corrupting state or producing `undefined` reward percentages.
+57. **`BulkImportModal` setTimeout leak fixed**: Auto-close timer stored in `successTimerRef` and cleared in `handleClose` + `useEffect` cleanup, preventing mid-type data loss on re-open.
+58. **Task Board `handleDropCompleted` status guard**: Drop onto Completed column now checks `task.status === 'pending'` before calling `completeTask`, preventing accidental mis-drop completions.
+59. **Task Board `in-progress` visibility**: Added `t.status === 'in-progress'` to `priorityTasks` filter so tasks in that state are no longer silently excluded from all board columns.
+
+### Session 11: Fullscreen + Fast-Forward Features and Fixes
+60. **Fullscreen mode**: Added fullscreen support to the emulator panel. `emulatorWrapRef` targets the inner emulator div; `requestFullscreen()` is called on it with an attempted `screen.orientation.lock('landscape')` on mobile. `fullscreenchange` event listener keeps `emulatorStore.isFullscreen` in sync with browser state. Toggle button in the emulator toolbar shows current state.
+61. **Fast-forward (2x speed)**: Added `setFastForward(enabled)` to `emulatorService` — tries `setFastForwardMultiplier`, falls back to `setFastForwardRatio`, then `setCoreSettings`. `isFastForward` persisted in `emulatorStore`. Toolbar button toggles between `▶ 1x` and `⏩ 2x`.
+62. **Mobile fullscreen controls**: In fullscreen on mobile, the on-screen controller overlay now has no background, no border, and all buttons are ghosted to `opacity: 0.35` (brightening to `0.9` on press). One-handed toggle hidden. Layout always spreads to `space-between` regardless of alignment setting.
+63. **Desktop fullscreen controls**: On desktop, the on-screen controller is hidden entirely in fullscreen — keyboard input handles all GBA buttons.
+64. **`isFullscreen` de-sync fix**: `handleToggleFullscreen` catch block now force-syncs store from `document.fullscreenElement`; `setIsFullscreen` added to `useCallback` deps.
+65. **Fullscreen flash fix**: `:fullscreen` / `:-webkit-full-screen` pseudo-class selectors added alongside `.is-fullscreen` on the base layout rule so `position: relative` applies immediately on entry before React re-renders.
+66. **Fast-forward post-init fix**: `setFastForward` now called inside `initialize().then()` so persisted 2x state is always applied to a fresh or retried module.
+67. **`initializing` flag success-path reset**: `this.initializing = false` added on the success path in `emulatorService.initialize()`.
 
 ---
 
