@@ -81,7 +81,8 @@ export const useTaskStore = create<TaskState>()(
         const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
         const dayOfWeek = now.getDay();
         const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-        const thisMondayStart = todayStart - daysSinceMonday * 86400000;
+        // Use calendar arithmetic (not raw ms) so DST transitions don't skew the boundary.
+        const thisMondayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysSinceMonday).getTime();
 
         let changed = false;
         const tasks = get().tasks.map((task) => {
@@ -101,6 +102,7 @@ export const useTaskStore = create<TaskState>()(
             return {
               ...task,
               status: 'pending',
+              completedAt: undefined,
               rewardClaimed: false,
               lastCompletedAt: null,
             } as Task;

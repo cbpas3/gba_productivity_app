@@ -22,8 +22,13 @@ function ControlButton({ button, label, className, 'aria-label': ariaLabel }: Co
   }
 
   function handlePointerLeave(e: React.PointerEvent) {
-    // Release if pointer leaves while held (e.g. drag off button)
-    emulatorService.releaseButton(button);
+    // Only release when the pointer is NOT captured. While captured (i.e. the user
+    // is actively holding the button), pointerLeave still fires if the pointer drifts
+    // outside the element bounds, but pointerUp will release it — so releasing here
+    // too would drop the button prematurely on any slight finger movement.
+    if (!(e.currentTarget as HTMLElement).hasPointerCapture(e.pointerId)) {
+      emulatorService.releaseButton(button);
+    }
   }
 
   function handlePointerCancel() {
