@@ -1,4 +1,4 @@
-import type { RewardType } from '../../types/reward';
+import type { Reward, RewardType } from '../../types/reward';
 import { useRewardStore } from '../../store/rewardStore';
 import { RewardLog } from './RewardLog';
 
@@ -21,6 +21,16 @@ const REWARD_LABELS: Record<RewardType, string> = {
   heal_pokemon:           'Full Heal',
   teach_move:             'New Move',
 };
+
+function getRewardValueShort(reward: Reward): string {
+  const { payload } = reward;
+  switch (payload.kind) {
+    case 'experience_percent': return `${payload.percent}% `;
+    case 'experience':         return `+${payload.amount} `;
+    case 'evs':                return `+${payload.amount} `;
+    default:                   return '';
+  }
+}
 
 export function RewardDisplay() {
   const pendingRewards = useRewardStore((s) => s.pendingRewards);
@@ -68,7 +78,7 @@ export function RewardDisplay() {
                 {REWARD_ICONS[reward.type]}
               </span>
               <span className="reward-display__pending-label">
-                {REWARD_LABELS[reward.type]}
+                {getRewardValueShort(reward)}{REWARD_LABELS[reward.type]}
               </span>
               <span className="reward-display__pending-slot">
                 Slot {reward.targetSlot + 1}
@@ -143,7 +153,7 @@ export function RewardDisplay() {
         .reward-display__counter--pending .reward-display__counter-value {
           color: var(--color-accent-yellow);
           text-shadow: 0 0 8px rgba(255,214,0,0.7);
-          animation: badge-pulse 1.2s ease-in-out infinite;
+          animation: text-pulse-yellow 1.2s ease-in-out infinite;
         }
         .reward-display__counter-value {
           font-family: var(--font-pixel);
@@ -255,6 +265,10 @@ export function RewardDisplay() {
           opacity: 0.6;
           cursor: not-allowed;
           animation: badge-pulse 1.2s ease-in-out infinite;
+        }
+        @keyframes text-pulse-yellow {
+          0%, 100% { text-shadow: 0 0 4px rgba(255, 214, 0, 0.4); }
+          50%      { text-shadow: 0 0 12px rgba(255, 214, 0, 0.9); }
         }
       `}</style>
     </div>

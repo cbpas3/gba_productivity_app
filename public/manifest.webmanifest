@@ -1,7 +1,7 @@
 {
-  "name": "GBA Productivity Quest",
-  "short_name": "GBA Quest",
-  "description": "Complete tasks, earn Pokemon EXP rewards in a real GBA emulator",
+  "name": "Game Productivity App",
+  "short_name": "Game Prod",
+  "description": "Complete real-world tasks and earn in-game rewards in a browser-based Game Boy Advance emulator",
   "start_url": "/",
   "display": "standalone",
   "orientation": "any",

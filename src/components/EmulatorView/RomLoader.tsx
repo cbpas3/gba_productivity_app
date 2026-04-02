@@ -126,6 +126,11 @@ export function RomLoader() {
         Accepts .gba / .gbc / .gb / .sav
       </p>
 
+      {/* Legal disclaimer */}
+      <p className="rom-loader__disclaimer">
+        You must own a legal copy of any ROM file you load. This app does not distribute ROM files.
+      </p>
+
       <style>{`
         .rom-loader {
           display: flex;
@@ -191,6 +196,17 @@ export function RomLoader() {
           color: var(--color-text-muted);
           letter-spacing: 0.08em;
           text-align: center;
+        }
+
+        .rom-loader__disclaimer {
+          font-family: var(--font-pixel);
+          font-size: 0.3rem;
+          color: var(--color-text-muted);
+          opacity: 0.6;
+          letter-spacing: 0.06em;
+          text-align: center;
+          line-height: 1.8;
+          max-width: 400px;
         }
 
         @media (max-width: 768px) {

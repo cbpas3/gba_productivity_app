@@ -1,4 +1,4 @@
-# GBA Productivity App — Knowledge Base
+# Game Productivity App — Knowledge Base
 
 > **Purpose**: Complete project context for LLM handoff. Covers architecture, Gen III save format, active bugs, and session history.
 
@@ -6,13 +6,14 @@
 
 ## 1. Project Overview
 
-A **Vite + React + TypeScript** progressive web app (PWA) that embeds the mGBA Game Boy Advance emulator (via WASM) and grants real in-game Pokemon rewards when the user completes productivity tasks. Installable on iOS via Safari "Add to Home Screen" and on Android/desktop via browser install prompt.
+A **Vite + React + TypeScript** progressive web app (PWA) that embeds the mGBA Game Boy Advance emulator (via WASM) and grants real in-game rewards when the user completes productivity tasks. Installable on iOS via Safari "Add to Home Screen" and on Android/desktop via browser install prompt.
 
 - **Stack**: Vite 5, React 18, TypeScript 5.9, Zustand 4, vitest 2
 - **Emulator**: `@thenick775/mgba-wasm` ^2.4.1 — Emscripten-compiled mGBA with an IndexedDB-backed virtual filesystem (VFS)
 - **PWA**: Service worker (`public/sw.js`) + web app manifest (`public/manifest.webmanifest`) for offline caching and installability
 - **Run dev**: `npm run dev` (from `/Users/cbpas/Projects/gba_productivity_app`)
-- **Tests**: `npx vitest run` — 6 test files, 94 tests, all passing as of session
+- **Tests**: `npx vitest run` — 7 test files, 121 tests, all passing as of session 6
+- **Fonts**: Self-hosted (Press Start 2P + VT323 woff2 in `src/styles/fonts/`) — works fully offline
 
 ---
 
@@ -20,16 +21,17 @@ A **Vite + React + TypeScript** progressive web app (PWA) that embeds the mGBA G
 
 ```
 src/
-  App.tsx                      # Root component, bootstraps services
+  App.tsx                      # Root component, bootstraps services, wraps in ErrorBoundary
   main.tsx
   components/
-    EmulatorView/              # GBA canvas + ROM/save loader UI
-    Layout/                    # AppLayout shell
-    RewardPanel/               # Displays pending/applied rewards
+    ErrorBoundary.tsx           # React error boundary — catches render errors, shows recovery UI
+    EmulatorView/              # GBA canvas + ROM/save loader UI (with file size validation)
+    Layout/                    # AppLayout shell (with emulator init retry)
+    RewardPanel/               # Displays pending rewards + "CLAIM REWARDS" button
     TaskManager/               # TaskList.tsx + TaskItem.tsx
   hooks/
     useKeyboardInput.ts        # Global GBA keyboard passthrough
-    useRewards.ts              # Subscribes to reward:applied events
+    useRewards.ts              # Subscribes to rewards:claimed events
   lib/
     gen3/                      # ALL Gen III save-file crypto lives here
       saveFileParser.ts        # Parse/write 128KB save, detect game variant
@@ -46,12 +48,12 @@ src/
     emulatorService.ts         # mGBA singleton: initialize, loadRom, getCurrentSave, writeSaveAndReload
     mgbaAdapter.ts             # MgbaModule type defs + VFS helpers + deriveFileNames
     pokemonCrypto.ts           # PokemonCryptoService class (delegates to lib/gen3)
-    rewardBridge.ts            # eventBus listener: reward:apply → SaveFileService → reward:applied
-    saveFileService.ts         # Orchestrates read→parse→modify→write→reload pipeline
+    rewardBridge.ts            # eventBus listener: rewards:claim → SaveFileService.applyBatchRewards → rewards:claimed
+    saveFileService.ts         # Orchestrates read→parse→modify→write→reload pipeline (batch + single)
   store/
     eventBus.ts                # Typed event bus (EventMap)
-    taskStore.ts               # Zustand tasks store (persisted as 'gba-tasks')
-    rewardStore.ts             # Zustand reward queue/history (persisted as 'gba-rewards')
+    taskStore.ts               # Zustand tasks store (persisted as 'gba-tasks'), pools rewards on completion
+    rewardStore.ts             # Zustand reward queue/history (persisted as 'gba-rewards'), claimAll(), isClaiming
     emulatorStore.ts           # Zustand emulator status
   types/
     emulator.ts                # IEmulatorService interface, GbaButton, EmulatorStatus
@@ -63,18 +65,25 @@ src/
   utils/
     crossOriginCheck.ts        # assertCrossOriginIsolated (needed for SharedArrayBuffer/WASM)
 public/
-  manifest.webmanifest         # PWA manifest (name, icons, display: standalone)
+  manifest.webmanifest         # PWA manifest (name: "Game Productivity App", icons, display: standalone)
   sw.js                        # Service worker: precache app shell, cache-first assets, network-first navigation
   icon.svg                     # GBA-themed SVG icon (pixel checkmark, D-pad, A/B, "EXP+")
   icon-192.png                 # 192×192 PNG icon for Android/manifest
   icon-512.png                 # 512×512 PNG icon for Android splash
   apple-touch-icon.png         # 180×180 PNG icon for iOS home screen
+  styles/
+    fonts/
+      PressStart2P.woff2       # Self-hosted pixel font (offline PWA)
+      VT323.woff2              # Self-hosted retro font (offline PWA)
 ```
 
 ---
 
 ## 3. Reward Pipeline (End-to-End)
 
+Rewards are **pooled** — completing tasks queues rewards without restarting the game. The user clicks "CLAIM REWARDS" to apply all pending rewards in a single game reload.
+
+### Step 1: Task completion pools a reward (no game reset)
 ```
 User clicks "DONE" on a task
   → TaskItem.tsx: completeTask(task.id)
@@ -82,23 +91,30 @@ User clicks "DONE" on a task
       Builds Reward via buildReward(priority) → add_experience_percent with EXP_PERCENT[priority]
       Marks task.status = 'completed', rewardClaimed = true
       eventBus.emit('task:completed', ...)
-      eventBus.emit('reward:apply', { reward })
-
-  → bootstrap.ts listener: addPending(reward)    [shows in RewardPanel UI]
-  → rewardBridge.ts listener: saveFileService.applyReward(reward)
-      1. emulatorService.getCurrentSave()        → Uint8Array (131 072 bytes)
-      2. cryptoService.parseSaveFile(data)        → SaveFile (detects game variant)
-      3. cryptoService.readPartyPokemon(save, slot) → Pokemon | null
-      4. cryptoService.applyReward(pokemon, reward) → modified Pokemon
-      5. cryptoService.writePartyPokemon(save, slot, pokemon) → Uint8Array (131 072 bytes)
-      6. cryptoService.recalculateSectionChecksum(data)  → pass-through (checksum already done in step 5)
-      7. emulatorService.writeSaveAndReload(finalSave)
-           - FS.writeFile(currentSavePath, data)
-           - FSSync() to IndexedDB
-           - fullReload(): quitGame() → setTimeout(0) → loadGame(romPath)
-  → eventBus.emit('reward:applied', { reward, success, error })
-  → useRewards hook in React updates UI
+      useRewardStore.getState().addPending(reward)   ← reward sits in pool, NO game reset
 ```
+
+### Step 2: User claims all pooled rewards (single game reload)
+```
+User clicks "CLAIM REWARDS" button (in RewardDisplay)
+  → rewardStore.claimAll()
+      Sets isClaiming = true, emits 'rewards:claim' event with all pending rewards
+
+  → rewardBridge.ts listener: saveFileService.applyBatchRewards(rewards)
+      1. emulatorService.getCurrentSave()           → Uint8Array (131 072 bytes)
+      2. cryptoService.parseSaveFile(data)           → SaveFile (detects game variant)
+      3. Group rewards by targetSlot
+      4. For each slot:
+         a. cryptoService.readPartyPokemon(save, slot) → Pokemon | null
+         b. For each reward in group: cryptoService.applyReward(pokemon, reward)
+         c. cryptoService.writePartyPokemon(save, slot, pokemon)
+      5. cryptoService.recalculateSectionChecksum(data)
+      6. emulatorService.writeSaveAndReload(finalSave)  ← SINGLE game reload
+  → rewardStore.markBatchApplied(rewards, success)      ← pending → history
+  → eventBus.emit('rewards:claimed', { rewards, success, error })
+```
+
+**Key design benefit**: Eliminates the race condition where two rapid task completions could overwrite each other's save modifications. All rewards are applied atomically in one read→modify→write cycle.
 
 ---
 
@@ -338,19 +354,27 @@ Thin adapter class that implements `IPokemonCryptoService`, delegating to `lib/g
 - `writePartyPokemon` → `setPartyPokemon`
 - `recalculateSectionChecksum` → pass-through (already done inside `setPartyPokemon`)
 
+### `src/services/saveFileService.ts`
+- `applyBatchRewards(rewards)` — reads save once, groups rewards by `targetSlot`, applies all per slot, writes save once, reloads once. **This is the primary method used by the reward pipeline.**
+- `applyReward(reward)` — delegates to `applyBatchRewards([reward])` for backward compat
+- `getRawSave()` — reads raw save bytes without modifying
+- `isCryptoReady()` — checks if crypto service is injected
+
 ### `src/services/emulatorService.ts`
 - `initialize(canvas)` — checks COI, imports WASM, FSInit, creates VFS dirs
 - `loadRom(file)` — writes to VFS, calls loadGame, captures `saveName` + `romData`
 - `getCurrentSave()` — tries `getSave()` first, falls back to VFS read
-- `writeSaveAndReload(data)` — uses the **double-write pattern**:
-  1. `toggleInput(false)` — prevent focusEventHandlerFunc crash during quitGame
-  2. `FS.writeFile(savePath, ourData)` (first write)
-  3. `quitGame()` → C core starts flushing save to VFS
-  4. wait 1000ms for async pthread flush to finish
-  5. `FS.writeFile(savePath, ourData)` (second write, wins race)
-  6. Delete `.ss` auto-save state file + disable snapshot capture
-  7. `loadGame(romPath, savePath)`
-  8. Re-enable snapshot settings + `toggleInput(true)` + `FSSync()`
+- `writeSaveAndReload(data)` — uses the **double-write pattern** (steps 2, 6, 7 throw on failure; other steps warn-and-continue):
+  1. `setCoreSettings({ restoreAutoSaveStateOnLoad: false })`
+  2. `FS.writeFile(savePath, ourData)` (first write — **critical, throws on failure**)
+  3. `toggleInput(false)` — prevent focusEventHandlerFunc crash during quitGame
+  4. `quitGame()` → C core starts flushing save to VFS
+  5. wait 1000ms for async pthread flush to finish
+  6. `FS.writeFile(savePath, ourData)` (second write — **critical, throws on failure**)
+  7. `FS.writeFile(romPath, romData)` (re-stage ROM — **critical, throws on failure**)
+  8. Delete `.ss` auto-save state file + disable snapshot capture
+  9. `loadGame(romPath, savePath)` — **critical, throws on failure**
+  10. `toggleInput(true)` + re-enable snapshot settings + `FSSync()`
 
 ---
 
@@ -360,24 +384,30 @@ Thin adapter class that implements `IPokemonCryptoService`, delegating to `lib/g
 ```ts
 tasks: Task[]
 addTask(title, description, priority)  // emits task:created
-completeTask(id)                        // emits task:completed + reward:apply
+completeTask(id)                        // emits task:completed, pools reward via rewardStore.addPending()
 deleteTask(id)                          // emits task:deleted
 ```
 
 ### `rewardStore` (persisted as `'gba-rewards'`)
 ```ts
 pendingRewards: Reward[]
-rewardHistory: RewardHistoryEntry[]
-addPending(reward)
-markApplied(reward, success)
+rewardHistory: RewardHistoryEntry[]   // capped at 100 entries
+isClaiming: boolean                    // true while batch claim is in progress
+addPending(reward)                     // called by taskStore on task completion
+claimAll()                             // emits 'rewards:claim' with all pending, sets isClaiming=true
+markBatchApplied(rewards, success)     // moves batch from pending → history, resets isClaiming
 clearHistory()
 ```
+
+On rehydrate (page load), stale `pendingRewards` are cleared — any reward pending before a refresh is unrecoverable.
 
 ### `eventBus`
 Typed, singleton event bus. Events:
 - `task:created` / `task:completed` / `task:deleted`
-- `reward:apply` → triggers save modification pipeline
-- `reward:applied` → carries `{ reward, success, error? }`
+- `reward:apply` → (legacy, no longer emitted by taskStore)
+- `reward:applied` → (legacy, no longer emitted)
+- `rewards:claim` → triggers batch save modification pipeline (from `rewardStore.claimAll()`)
+- `rewards:claimed` → carries `{ rewards, success, error? }` (from `rewardBridge`)
 - `emulator:status` / `emulator:save-modified`
 
 ---
@@ -399,7 +429,27 @@ Typed, singleton event bus. Events:
 ### ✅ Fixed: Wrong save path / quickReload unreliability
 - Old code defaulted save path to `/data/saves/game.sav`. mGBA uses `module.saveName`.
 - Old code used `quickReload()` which doesn't reliably pick up externally-modified saves.
-- Fix: Capture `this.currentSavePath = this.module.saveName ?? savePath` after `loadGame`. Use `fullReload()` (quit + reload cycle).
+- Fix: Capture `this.currentSavePath = this.module.saveName ?? savePath` after `loadGame`. Use full quit + reload cycle.
+
+### ✅ Fixed: Concurrent reward race condition (Session 6)
+- Two rapid task completions triggered concurrent `applyReward()` calls. The second read the save before the first wrote, so the second reward overwrote the first.
+- Fix: Rewards are now **pooled** — task completion queues rewards without triggering a game reload. All rewards are applied atomically in a single `applyBatchRewards()` call when the user clicks "CLAIM REWARDS".
+
+### ✅ Fixed: Silent error swallowing in `writeSaveAndReload` (Session 6)
+- 11 of 12 steps caught and swallowed errors. A failed VFS write meant `loadGame` loaded stale data but the caller saw `success: true`.
+- Fix: Steps 2, 6, 7, 9 (the critical write/load steps) now throw on failure. Non-critical steps (toggleInput, delete .ss, FSSync) remain warn-and-continue.
+
+### ✅ Fixed: No recovery from emulator init failure (Session 6)
+- `initialized.current = true` was set before `await emulatorService.initialize()`. If init failed, no retry was possible.
+- Fix: Flag set only after success. Added RETRY button in error state.
+
+### ✅ Fixed: Google Fonts breaking offline PWA (Session 6)
+- `globals.css` imported Press Start 2P + VT323 from Google Fonts via network. Broke offline use.
+- Fix: Downloaded woff2 files, self-hosted in `src/styles/fonts/`, replaced `@import url(...)` with local `@font-face`.
+
+### ✅ Fixed: GbaControls stuck button on pointer cancel (Session 6)
+- `onPointerCancel` and `onTouchCancel` called `preventDefault()` but never `releaseButton()`. Button stayed pressed forever after an OS interruption.
+- Fix: Both cancel handlers now call `emulatorService.releaseButton(button)`.
 
 ### ⚠️ Known: FireRed first-save incomplete sections
 - FireRed's very first in-game save may not write all 14 sections to the save file. Section ID 1 (party data) can be missing, causing `readPartyPokemon` to return null.
@@ -490,15 +540,31 @@ Tests use synthetic save buffers with R/S-style offsets (game code 0). `detectGa
     - Updated `src/main.tsx` — service worker registration on page load.
 24. **iOS PWA note**: Installation requires Safari (not Chrome on iOS, since Chrome/iOS doesn't support "Add to Home Screen"). Use Safari → Share → "Add to Home Screen".
 
+### Session 6: Production Readiness — Pooled Rewards, Error Handling, Hardening
+25. **Pooled reward system**: Completing a task no longer triggers an immediate game reload. Rewards are pooled in `rewardStore.pendingRewards`. The user clicks a "CLAIM REWARDS" button (in `RewardDisplay`) to apply all pending rewards in a single `applyBatchRewards()` call and one game reload. This eliminates the concurrent-reward race condition by design.
+26. **`applyBatchRewards` in `saveFileService.ts`**: Reads save once, groups rewards by `targetSlot`, applies all rewards per slot sequentially, writes save once, reloads once. Falls back to `applyBatchRewards([reward])` for single-reward backward compat.
+27. **`rewardStore` overhaul**: Added `claimAll()` (emits `rewards:claim`, sets `isClaiming=true`), `markBatchApplied(rewards, success)` (moves batch to history, caps at 100 entries), `onRehydrateStorage` callback (clears stale pending rewards on page load).
+28. **`taskStore` change**: `completeTask()` now calls `useRewardStore.getState().addPending(reward)` directly instead of emitting `reward:apply`. No game reset on task completion.
+29. **`rewardBridge` change**: Listens for `rewards:claim` instead of `reward:apply`. Calls `saveFileService.applyBatchRewards(rewards)`. Calls `rewardStore.markBatchApplied()` on completion. Emits `rewards:claimed`.
+30. **`bootstrap.ts` simplified**: Removed the `reward:apply` → `addPending` listener (no longer needed since `taskStore` calls `addPending` directly).
+31. **Critical error propagation in `writeSaveAndReload`**: Steps 2, 6, 7 (VFS writes) and step 9 (`loadGame`) now throw on failure instead of silently continuing. Non-critical steps remain warn-and-continue.
+32. **Dead code removal**: Deleted unused `fullReload()` private method from `emulatorService.ts`.
+33. **React Error Boundary**: New `ErrorBoundary.tsx` class component wraps `<AppLayout>` in `App.tsx`. Catches render-time errors and shows "SOMETHING WENT WRONG" with a "RELOAD APP" button.
+34. **Emulator init retry**: `initialized.current` is now set to `true` only after successful `emulatorService.initialize()`. On failure, a RETRY button is shown in the emulator panel.
+35. **Self-hosted fonts**: Downloaded Press Start 2P and VT323 woff2 files to `src/styles/fonts/`. Replaced Google Fonts `@import url(...)` with local `@font-face` declarations. App now renders correctly offline.
+36. **GbaControls pointer/touch cancel fix**: Added `onPointerCancel` handler and updated `onTouchCancel` to call `emulatorService.releaseButton(button)`. Prevents stuck buttons after OS interruptions (phone calls, notifications).
+37. **ROM/save file size validation**: `RomLoader.tsx` now checks file sizes before reading: ROM max 32 MB, save max 256 KB. Shows descriptive error if exceeded.
+38. **Reward history cap**: `rewardStore.markBatchApplied()` trims `rewardHistory` to the last 100 entries to prevent unbounded localStorage growth.
+
 ---
 
 ## 14. Next Steps (Suggested)
 
-1. **Add UI feedback** — show the user a visual "Game reloading with reward..." overlay while the 1-second save injection delay is running so they don't think the app froze.
+1. **Explore WASM memory pointer** — future optimization: mGBA WASM exposes the raw C heap. If we could locate the save chip pointer in memory, we could write the 128KB payload directly to RAM without forcing a game restart. This would allow truly seamless background rewards without kicking the player to the title screen.
 
-2. **Explore WASM memory pointer** — future optimization: mGBA WASM exposes the raw C heap. If we could locate the save chip pointer in memory, we could write the 128KB payload directly to RAM without forcing a game restart. This would allow truly seamless background rewards without kicking the player to the title screen.
+2. **Re-enable other reward types** — the legacy reward types (heal, items, IVs, EVs, moves) are still fully implemented in the crypto service. They could be surfaced as bonus rewards, achievement unlocks, or selectable options alongside the EXP rewards.
 
-3. **Re-enable other reward types** — the legacy reward types (heal, items, IVs, EVs, moves) are still fully implemented in the crypto service. They could be surfaced as bonus rewards, achievement unlocks, or selectable options alongside the EXP rewards.
+3. **PWA enhancements** — add offline fallback page, background sync for task persistence, push notifications for task reminders, and app update prompts when the service worker detects a new version.
 
-4. **PWA enhancements** — add offline fallback page, background sync for task persistence, push notifications for task reminders, and app update prompts when the service worker detects a new version.
+4. **Service worker cache versioning** — `CACHE_NAME = 'gba-quest-v1'` is hardcoded. Consider injecting a build hash at build time or using `vite-plugin-pwa` for automatic cache busting on deploys.
 
