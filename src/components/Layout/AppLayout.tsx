@@ -1,5 +1,6 @@
 import { useRef, useEffect, useCallback } from "react";
 import { Header } from "./Header";
+import { TutorialModal } from "../TutorialModal";
 import { TaskForm, TaskList } from "../TaskManager";
 import { RewardDisplay } from "../RewardPanel";
 import { EmulatorCanvas, GbaControls, RomLoader } from "../EmulatorView";
@@ -128,6 +129,8 @@ export function AppLayout() {
           Nintendo.
         </p>
       </footer>
+
+      <TutorialModal />
 
       <style>{`
         .app-layout {

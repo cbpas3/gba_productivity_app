@@ -564,6 +564,11 @@ Tests use synthetic save buffers with R/S-style offsets (game code 0). `detectGa
 43. **README Credits & Licenses section added**: Full attribution for mGBA, both fonts, Pokémon trademark notice, and Game Boy Advance trademark notice.
 44. **Trademark notices**: "Game Boy Advance" is a trademark of Nintendo Co., Ltd. — noted in footer and README. "Pokémon" is a registered trademark of Nintendo/Creatures Inc./GAME FREAK inc. — noted in README credits.
 
+### Session 8: UI Polish and Onboarding
+45. **Reward Center Visual Fixes**: Fixed a bug where percentage values were not displayed alongside the '%EXP' label in the Queued Rewards list. Additionally, corrected the pulse animation on the 'PENDING' numeric value from a red box-shadow (`badge-pulse`) to a proper yellow text glow (`text-pulse-yellow`).
+46. **Tutorial Modal Addition**: Implemented a first-time visitor onboarding `TutorialModal` overlay explaining the core mechanics (load ROM, complete tasks, claim rewards).
+47. **UI Zustand Store**: Created `useUiStore` using `persist` middleware mapped to `gba-ui-prefs` in localStorage to track when a user checks "Never show this again" on the tutorial modal.
+
 ---
 
 ## 14. Next Steps (Suggested)
