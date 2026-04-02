@@ -2,40 +2,21 @@
  * SaveFileService — orchestrates reading, modifying, and writing GBA save data.
  *
  * This service sits between the emulator (IEmulatorService) and the Pokemon
- * cryptography layer (IPokemonCryptoService). Agent C will provide a concrete
- * implementation of IPokemonCryptoService; this file only declares the
- * interface contract that implementation must satisfy.
+ * cryptography layer (IPokemonCryptoService).
  *
  * Usage:
  *   const svc = new SaveFileService(emulatorService);
- *   svc.setCryptoService(concreteCryptoImpl); // called by Agent C's bootstrap
- *   const result = await svc.applyReward(reward);
+ *   svc.setCryptoService(concreteCryptoImpl);
+ *   const result = await svc.applyBatchRewards(rewards);
  */
 
 import type { Reward } from '../types/reward';
 import type { IEmulatorService } from '../types/emulator';
 
 // ---------------------------------------------------------------------------
-// IPokemonCryptoService — interface stub for Agent C
+// IPokemonCryptoService — interface for Agent C's crypto implementation
 // ---------------------------------------------------------------------------
 
-/**
- * Contract for the Gen III Pokemon save-file cryptography service.
- *
- * Agent C provides the concrete implementation. The methods map directly to
- * the operations needed to apply a Reward to a party Pokemon:
- *
- *  parseSaveFile     — decode raw 128 KB save bytes into a structured SaveFile
- *  readPartyPokemon  — decrypt and deserialise a party slot into a Pokemon
- *  applyReward       — mutate a Pokemon according to a Reward descriptor
- *  writePartyPokemon — re-encrypt and serialise the Pokemon back into the save
- *  recalculateSectionChecksum — fix section CRCs after the write
- *
- * `any` is used here intentionally: the full Pokemon / SaveFile types live in
- * src/types/ and Agent C will constrain them in the concrete class. Using
- * structural `any` at the interface boundary keeps this layer decoupled from
- * the crypto implementation details.
- */
 export interface IPokemonCryptoService {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   parseSaveFile(data: Uint8Array): any;
@@ -77,35 +58,22 @@ export class SaveFileService {
     this.cryptoService = cryptoService;
   }
 
-  /**
-   * Injects the concrete Pokemon cryptography implementation.
-   * Must be called before `applyReward` can succeed.
-   */
   setCryptoService(service: IPokemonCryptoService): void {
     this.cryptoService = service;
   }
 
   /**
-   * Applies a Reward to the party Pokemon in the given slot.
-   *
-   * Steps:
-   *   1. Read current save data from the emulator.
-   *   2. Parse the save file structure.
-   *   3. Read and decrypt the target party Pokemon.
-   *   4. Apply the reward mutation.
-   *   5. Re-encrypt and write the Pokemon back into the save buffer.
-   *   6. Recalculate all affected section checksums.
-   *   7. Write the modified save back to the emulator and trigger a reload.
-   *
-   * All errors are caught and returned as `{ success: false, error }` so that
-   * callers do not need individual try/catch blocks.
-   *
-   * @param reward - The reward descriptor, including targetSlot (0-5).
-   * @returns A result object indicating success or describing the failure.
+   * Applies multiple rewards in a single save read/write cycle.
+   * Reads the save once, applies all rewards grouped by target slot,
+   * writes the modified save once, and triggers a single game reload.
    */
-  async applyReward(reward: Reward): Promise<ApplyRewardResult> {
+  async applyBatchRewards(rewards: Reward[]): Promise<ApplyRewardResult> {
     if (this.cryptoService === null) {
       return { success: false, error: 'Crypto service not initialized' };
+    }
+
+    if (rewards.length === 0) {
+      return { success: false, error: 'No rewards to apply' };
     }
 
     const saveData = this.emulatorService.getCurrentSave();
@@ -121,29 +89,47 @@ export class SaveFileService {
       const saveFile = this.cryptoService.parseSaveFile(saveData);
       console.log('[SaveFileService] parseSaveFile OK, activeBlock =', saveFile.activeBlock);
 
-      const pokemon = this.cryptoService.readPartyPokemon(saveFile, reward.targetSlot);
-      console.log('[SaveFileService] readPartyPokemon slot', reward.targetSlot, '→', pokemon ? `species ${pokemon.growth.species}` : 'null');
-      if (pokemon === null || pokemon === undefined) {
-        return {
-          success: false,
-          error: `No Pokemon in party slot ${reward.targetSlot}. Try saving in-game again — early saves may be incomplete.`,
-        };
+      // Group rewards by target slot
+      const bySlot = new Map<number, Reward[]>();
+      for (const reward of rewards) {
+        const slot = reward.targetSlot;
+        if (!bySlot.has(slot)) bySlot.set(slot, []);
+        bySlot.get(slot)!.push(reward);
       }
 
-      const modifiedPokemon = this.cryptoService.applyReward(pokemon, reward);
-      console.log('[SaveFileService] applyReward OK');
+      // Apply all rewards per slot, writing each slot back before moving to the next
+      let currentSaveData: Uint8Array | null = null;
 
-      const modifiedSave = this.cryptoService.writePartyPokemon(
-        saveFile,
-        reward.targetSlot,
-        modifiedPokemon,
-      );
-      console.log('[SaveFileService] writePartyPokemon OK,', modifiedSave.byteLength, 'bytes');
+      for (const [slot, slotRewards] of bySlot) {
+        // Re-parse if we've written a previous slot (save bytes changed)
+        const currentSave = currentSaveData
+          ? this.cryptoService.parseSaveFile(currentSaveData)
+          : saveFile;
 
-      const finalSave = this.cryptoService.recalculateSectionChecksum(modifiedSave);
+        let pokemon = this.cryptoService.readPartyPokemon(currentSave, slot);
+        console.log('[SaveFileService] readPartyPokemon slot', slot, '→', pokemon ? `species ${pokemon.growth.species}` : 'null');
+
+        if (pokemon === null || pokemon === undefined) {
+          return {
+            success: false,
+            error: `No Pokemon in party slot ${slot}. Try saving in-game again — early saves may be incomplete.`,
+          };
+        }
+
+        // Apply each reward to this slot's Pokemon sequentially
+        for (const reward of slotRewards) {
+          pokemon = this.cryptoService.applyReward(pokemon, reward);
+          console.log('[SaveFileService] applied', reward.type, 'to slot', slot);
+        }
+
+        currentSaveData = this.cryptoService.writePartyPokemon(currentSave, slot, pokemon);
+        console.log('[SaveFileService] writePartyPokemon slot', slot, 'OK,', currentSaveData.byteLength, 'bytes');
+      }
+
+      const finalSave = this.cryptoService.recalculateSectionChecksum(currentSaveData!);
 
       await this.emulatorService.writeSaveAndReload(finalSave);
-      console.log('[SaveFileService] writeSaveAndReload OK');
+      console.log('[SaveFileService] writeSaveAndReload OK — applied', rewards.length, 'rewards in 1 reload');
 
       return { success: true };
     } catch (err) {
@@ -156,19 +142,16 @@ export class SaveFileService {
   }
 
   /**
-   * Reads the raw save data currently in the emulator without modifying it.
-   *
-   * Returns null when no game is loaded or no save exists yet. Useful for
-   * diagnostic views or manual export.
+   * Applies a single reward. Kept for backward compatibility.
    */
+  async applyReward(reward: Reward): Promise<ApplyRewardResult> {
+    return this.applyBatchRewards([reward]);
+  }
+
   getRawSave(): Uint8Array | null {
     return this.emulatorService.getCurrentSave();
   }
 
-  /**
-   * Returns whether a crypto service has been injected.
-   * Consumers can use this to conditionally enable reward UI.
-   */
   isCryptoReady(): boolean {
     return this.cryptoService !== null;
   }

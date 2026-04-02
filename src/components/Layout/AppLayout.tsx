@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 import { Header } from './Header';
 import { TaskForm, TaskList } from '../TaskManager';
 import { RewardDisplay } from '../RewardPanel';
@@ -11,25 +11,29 @@ export function AppLayout() {
   const initialized = useRef(false);
   const setStatus   = useEmulatorStore((s) => s.setStatus);
   const setError    = useEmulatorStore((s) => s.setError);
+  const errorMessage = useEmulatorStore((s) => s.errorMessage);
 
-  useEffect(() => {
-    if (initialized.current) return;
+  const initEmulator = useCallback(() => {
     if (!canvasRef.current) return;
-    initialized.current = true;
-
-    const canvas = canvasRef.current;
 
     setStatus('loading');
 
-    emulatorService.initialize(canvas)
+    emulatorService.initialize(canvasRef.current)
       .then(() => {
+        initialized.current = true;
         setStatus('idle');
       })
       .catch((err: unknown) => {
+        initialized.current = false;
         const message = err instanceof Error ? err.message : String(err);
         setError(message);
       });
   }, [setStatus, setError]);
+
+  useEffect(() => {
+    if (initialized.current) return;
+    initEmulator();
+  }, [initEmulator]);
 
   return (
     <div className="app-layout">
@@ -70,6 +74,17 @@ export function AppLayout() {
 
             <div className="app-layout__emulator-inner">
               <EmulatorCanvas ref={canvasRef} />
+              {errorMessage && (
+                <div className="app-layout__emu-error">
+                  <p className="app-layout__emu-error-msg">{errorMessage}</p>
+                  <button
+                    className="btn btn--danger"
+                    onClick={() => { initialized.current = false; initEmulator(); }}
+                  >
+                    RETRY
+                  </button>
+                </div>
+              )}
               <GbaControls />
               <RomLoader />
             </div>
@@ -138,6 +153,27 @@ export function AppLayout() {
           flex-direction: column;
           align-items: center;
           gap: var(--space-3);
+        }
+
+        .app-layout__emu-error {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: var(--space-2);
+          padding: var(--space-3);
+          background: rgba(239, 68, 68, 0.1);
+          border: 1px solid rgba(239, 68, 68, 0.3);
+          border-radius: var(--radius-sm);
+          width: 100%;
+          box-sizing: border-box;
+        }
+        .app-layout__emu-error-msg {
+          font-family: var(--font-pixel);
+          font-size: 0.4rem;
+          color: var(--color-accent-red, #ef4444);
+          text-align: center;
+          line-height: 1.6;
+          word-break: break-word;
         }
 
         /* ── Responsive ── */

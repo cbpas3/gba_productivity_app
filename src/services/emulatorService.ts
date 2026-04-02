@@ -222,11 +222,9 @@ class EmulatorServiceImpl implements IEmulatorService {
       console.log('[EmulatorService] step 1: setCoreSettings OK');
     } catch (e) { console.warn('[EmulatorService] step 1: setCoreSettings failed', e); }
 
-    // 2. Write our save BEFORE quitGame.
-    try {
-      this.module!.FS.writeFile(savePath, saveData);
-      console.log('[EmulatorService] step 2: FS.writeFile (pre-quit) OK');
-    } catch (e) { console.error('[EmulatorService] step 2: FS.writeFile failed', e); }
+    // 2. Write our save BEFORE quitGame (critical — must succeed).
+    this.module!.FS.writeFile(savePath, saveData);
+    console.log('[EmulatorService] step 2: FS.writeFile (pre-quit) OK');
 
     // 3. Disable DOM input to prevent focusEventHandlerFunc crash.
     try {
@@ -245,18 +243,14 @@ class EmulatorServiceImpl implements IEmulatorService {
     await new Promise<void>((resolve) => setTimeout(resolve, 1000));
     console.log('[EmulatorService] step 5: wait complete');
 
-    // 6. Write our save AGAIN — guaranteed after any async flush.
-    try {
-      this.module!.FS.writeFile(savePath, saveData);
-      console.log('[EmulatorService] step 6: FS.writeFile (post-flush) OK');
-    } catch (e) { console.error('[EmulatorService] step 6: FS.writeFile failed', e); }
+    // 6. Write our save AGAIN — guaranteed after any async flush (critical).
+    this.module!.FS.writeFile(savePath, saveData);
+    console.log('[EmulatorService] step 6: FS.writeFile (post-flush) OK');
 
-    // 7. Re-stage ROM.
+    // 7. Re-stage ROM (critical — loadGame needs the ROM on VFS).
     if (this.currentRomData !== null) {
-      try {
-        this.module!.FS.writeFile(romPath, this.currentRomData);
-        console.log('[EmulatorService] step 7: ROM re-staged OK');
-      } catch (e) { console.error('[EmulatorService] step 7: ROM re-stage failed', e); }
+      this.module!.FS.writeFile(romPath, this.currentRomData);
+      console.log('[EmulatorService] step 7: ROM re-staged OK');
     }
 
     // 8. Delete auto-save state snapshot.
@@ -398,53 +392,6 @@ class EmulatorServiceImpl implements IEmulatorService {
   }
 
   // Private helpers ------------------------------------------------------
-
-  /**
-   * Performs a full quit + reload cycle, then writes `saveData` to the VFS
-   * AFTER quitGame() so that mGBA's own save flush cannot overwrite it.
-   *
-   * Order:
-   *   1. quitGame()          — mGBA flushes its stale save to VFS
-   *   2. setTimeout(200ms)   — let the WASM runtime finish the flush
-   *   3. FS.writeFile(save)   — overwrite with our modified save
-   *   4. FSSync()            — persist to IndexedDB
-   *   5. FS.writeFile(rom)   — re-stage ROM
-   *   6. loadGame()          — mGBA reads our save from VFS
-   */
-  private async fullReload(saveData?: Uint8Array): Promise<void> {
-    if (this.module === null || this.currentRomPath === null) return;
-
-    try {
-      this.module.quitGame();
-    } catch {
-      // Ignore errors from quitGame during fallback reload.
-    }
-
-    // Give the WASM runtime time to finish flushing the old save to the VFS.
-    await new Promise<void>((resolve) => setTimeout(resolve, 200));
-
-    // Write our modified save NOW — after quitGame's flush — so loadGame
-    // picks up our version rather than the stale one.
-    if (saveData !== undefined && this.currentSavePath !== null) {
-      console.log('[EmulatorService] fullReload: writing modified save after quitGame');
-      this.module.FS.writeFile(this.currentSavePath, saveData);
-      try {
-        await this.module.FSSync();
-      } catch {
-        // Non-fatal.
-      }
-    }
-
-    if (this.currentRomData !== null) {
-      this.module.FS.writeFile(this.currentRomPath, this.currentRomData);
-    }
-
-    const accepted = this.module.loadGame(this.currentRomPath);
-    if (!accepted) {
-      this.setStatus('error');
-      throw new Error('mGBA rejected the ROM during fallback reload.');
-    }
-  }
 
   /**
    * Throws if the mGBA module has not been initialised yet.

@@ -14,12 +14,20 @@ export function RomLoader() {
 
   const isLoading = status === 'loading';
 
+  const MAX_ROM_SIZE  = 32 * 1024 * 1024; // 32 MB
+  const MAX_SAVE_SIZE = 256 * 1024;       // 256 KB
+
   async function handleRomChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
 
     // Reset the input so the same file can be re-selected if needed
     e.target.value = '';
+
+    if (file.size > MAX_ROM_SIZE) {
+      setError(`ROM file too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum is 32 MB.`);
+      return;
+    }
 
     try {
       const accepted = await emulatorService.loadRom(file);
@@ -39,6 +47,11 @@ export function RomLoader() {
     if (!file) return;
 
     e.target.value = '';
+
+    if (file.size > MAX_SAVE_SIZE) {
+      setError(`Save file too large (${(file.size / 1024).toFixed(0)} KB). Maximum is 256 KB.`);
+      return;
+    }
 
     try {
       await emulatorService.loadSave(file);

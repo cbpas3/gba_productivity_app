@@ -25,6 +25,8 @@ const REWARD_LABELS: Record<RewardType, string> = {
 export function RewardDisplay() {
   const pendingRewards = useRewardStore((s) => s.pendingRewards);
   const rewardHistory  = useRewardStore((s) => s.rewardHistory);
+  const isClaiming     = useRewardStore((s) => s.isClaiming);
+  const claimAll       = useRewardStore((s) => s.claimAll);
 
   const pendingCount = pendingRewards.length;
   const totalApplied = rewardHistory.filter((r) => r.success).length;
@@ -78,6 +80,19 @@ export function RewardDisplay() {
               +{pendingCount - 5} more...
             </p>
           )}
+
+          <div className="reward-display__claim-section">
+            <p className="reward-display__claim-warning">
+              Save your game first! Claiming will reload the game.
+            </p>
+            <button
+              className="btn reward-display__claim-btn"
+              onClick={claimAll}
+              disabled={isClaiming}
+            >
+              {isClaiming ? 'APPLYING...' : `CLAIM ${pendingCount} REWARD${pendingCount !== 1 ? 'S' : ''}`}
+            </button>
+          </div>
         </div>
       )}
 
@@ -197,6 +212,49 @@ export function RewardDisplay() {
           color: var(--color-text-muted);
           text-align: center;
           margin-top: 4px;
+        }
+        .reward-display__claim-section {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: var(--space-2);
+          margin-top: var(--space-2);
+          padding-top: var(--space-2);
+          border-top: 1px solid rgba(255, 214, 0, 0.15);
+        }
+        .reward-display__claim-warning {
+          font-family: var(--font-pixel);
+          font-size: 0.35rem;
+          color: var(--color-accent-red, #ef4444);
+          text-align: center;
+          letter-spacing: 0.04em;
+          line-height: 1.6;
+        }
+        .reward-display__claim-btn {
+          width: 100%;
+          padding: var(--space-2) var(--space-3);
+          font-family: var(--font-pixel);
+          font-size: 0.5rem;
+          letter-spacing: 0.1em;
+          color: #1a0a2e;
+          background: var(--color-accent-yellow, #facc15);
+          border: 2px solid rgba(255, 214, 0, 0.6);
+          border-radius: var(--radius-sm);
+          cursor: pointer;
+          text-shadow: none;
+          transition: background var(--transition-normal), transform 0.1s;
+        }
+        .reward-display__claim-btn:hover:not(:disabled) {
+          background: #fde047;
+          transform: scale(1.02);
+        }
+        .reward-display__claim-btn:active:not(:disabled) {
+          transform: scale(0.98);
+        }
+        .reward-display__claim-btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+          animation: badge-pulse 1.2s ease-in-out infinite;
         }
       `}</style>
     </div>

@@ -25,11 +25,19 @@ function ControlButton({ button, label, className, 'aria-label': ariaLabel }: Co
     emulatorService.releaseButton(button);
   }
 
+  function handlePointerCancel() {
+    // Release if OS interrupts the pointer (e.g. phone call, notification)
+    emulatorService.releaseButton(button);
+  }
+
   // Explicitly prevent default on touch events to stop Safari from scrolling
   function handleTouch(e: React.TouchEvent) {
-    // We only preventDefault here to stop the mobile browser scroll/zoom behavior.
-    // The actual button press logic is handled by PointerEvents above.
     e.preventDefault();
+  }
+
+  function handleTouchCancel(e: React.TouchEvent) {
+    e.preventDefault();
+    emulatorService.releaseButton(button);
   }
 
   return (
@@ -38,10 +46,11 @@ function ControlButton({ button, label, className, 'aria-label': ariaLabel }: Co
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerLeave}
+      onPointerCancel={handlePointerCancel}
       onTouchStart={handleTouch}
       onTouchEnd={handleTouch}
       onTouchMove={handleTouch}
-      onTouchCancel={handleTouch}
+      onTouchCancel={handleTouchCancel}
       aria-label={ariaLabel}
       type="button"
     >

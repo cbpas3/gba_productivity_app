@@ -8,6 +8,8 @@ export interface EventMap {
   'task:deleted': { taskId: string };
   'reward:apply': { reward: Reward };
   'reward:applied': { reward: Reward; success: boolean; error?: string };
+  'rewards:claim': { rewards: Reward[] };
+  'rewards:claimed': { rewards: Reward[]; success: boolean; error?: string };
   'emulator:status': { status: EmulatorStatus };
   'emulator:save-modified': { partySlot: number };
 }

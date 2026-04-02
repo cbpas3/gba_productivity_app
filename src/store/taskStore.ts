@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import type { Task, TaskPriority } from '../types/task';
 import type { Reward } from '../types/reward';
 import { eventBus } from './eventBus';
+import { useRewardStore } from './rewardStore';
 
 const EXP_PERCENT: Record<TaskPriority, number> = {
   low:      10,
@@ -62,7 +63,8 @@ export const useTaskStore = create<TaskState>()(
         }));
 
         eventBus.emit('task:completed', { task: completedTask, reward });
-        eventBus.emit('reward:apply', { reward });
+        // Pool the reward — no game reset until user clicks "CLAIM REWARDS"
+        useRewardStore.getState().addPending(reward);
       },
 
       deleteTask: (id) => {

@@ -6,8 +6,11 @@ export function useRewards() {
   const store = useRewardStore();
 
   useEffect(() => {
-    const unsub = eventBus.on('reward:applied', ({ reward, success }) => {
-      store.markApplied(reward, success);
+    const unsub = eventBus.on('rewards:claimed', ({ rewards, success }) => {
+      // markBatchApplied is already called by rewardBridge, but if
+      // additional UI-side effects are needed in the future, wire them here.
+      void rewards;
+      void success;
     });
     return unsub;
   }, []);
