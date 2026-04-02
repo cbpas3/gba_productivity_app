@@ -1,27 +1,28 @@
-import { useRef, useEffect, useCallback } from 'react';
-import { Header } from './Header';
-import { TaskForm, TaskList } from '../TaskManager';
-import { RewardDisplay } from '../RewardPanel';
-import { EmulatorCanvas, GbaControls, RomLoader } from '../EmulatorView';
-import { emulatorService } from '../../services/emulatorService';
-import { useEmulatorStore } from '../../store/emulatorStore';
+import { useRef, useEffect, useCallback } from "react";
+import { Header } from "./Header";
+import { TaskForm, TaskList } from "../TaskManager";
+import { RewardDisplay } from "../RewardPanel";
+import { EmulatorCanvas, GbaControls, RomLoader } from "../EmulatorView";
+import { emulatorService } from "../../services/emulatorService";
+import { useEmulatorStore } from "../../store/emulatorStore";
 
 export function AppLayout() {
-  const canvasRef   = useRef<HTMLCanvasElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const initialized = useRef(false);
-  const setStatus   = useEmulatorStore((s) => s.setStatus);
-  const setError    = useEmulatorStore((s) => s.setError);
+  const setStatus = useEmulatorStore((s) => s.setStatus);
+  const setError = useEmulatorStore((s) => s.setError);
   const errorMessage = useEmulatorStore((s) => s.errorMessage);
 
   const initEmulator = useCallback(() => {
     if (!canvasRef.current) return;
 
-    setStatus('loading');
+    setStatus("loading");
 
-    emulatorService.initialize(canvasRef.current)
+    emulatorService
+      .initialize(canvasRef.current)
       .then(() => {
         initialized.current = true;
-        setStatus('idle');
+        setStatus("idle");
       })
       .catch((err: unknown) => {
         initialized.current = false;
@@ -40,11 +41,15 @@ export function AppLayout() {
       <Header />
 
       <main className="app-layout__main" role="main">
-
         {/* ── Left panel: Tasks + Rewards ── */}
-        <aside className="app-layout__left-panel" aria-label="Quest and reward management">
-
-          <section className="app-layout__section card pixel-border" aria-label="Quest manager">
+        <aside
+          className="app-layout__left-panel"
+          aria-label="Quest and reward management"
+        >
+          <section
+            className="app-layout__section card pixel-border"
+            aria-label="Quest manager"
+          >
             <h2 className="app-layout__section-title glow-text--cyan">
               QUEST LOG
             </h2>
@@ -54,14 +59,16 @@ export function AppLayout() {
             <TaskList />
           </section>
 
-          <section className="app-layout__section card pixel-border" aria-label="Reward center">
+          <section
+            className="app-layout__section card pixel-border"
+            aria-label="Reward center"
+          >
             <h2 className="app-layout__section-title glow-text--purple">
               REWARD CENTER
             </h2>
             <hr className="pixel-divider" />
             <RewardDisplay />
           </section>
-
         </aside>
 
         {/* ── Right panel: Emulator ── */}
@@ -79,7 +86,10 @@ export function AppLayout() {
                   <p className="app-layout__emu-error-msg">{errorMessage}</p>
                   <button
                     className="btn btn--danger"
-                    onClick={() => { initialized.current = false; initEmulator(); }}
+                    onClick={() => {
+                      initialized.current = false;
+                      initEmulator();
+                    }}
                   >
                     RETRY
                   </button>
@@ -90,12 +100,11 @@ export function AppLayout() {
             </div>
           </div>
         </section>
-
       </main>
 
       <footer className="app-layout__footer" role="contentinfo">
         <p className="app-layout__footer-text">
-          Emulation powered by{' '}
+          Emulation powered by{" "}
           <a
             href="https://mgba.io/"
             target="_blank"
@@ -103,8 +112,8 @@ export function AppLayout() {
             className="app-layout__footer-link"
           >
             mGBA
-          </a>
-          {' '}(Mozilla Public License 2.0) via{' '}
+          </a>{" "}
+          (Mozilla Public License 2.0) via{" "}
           <a
             href="https://github.com/thenick775/mgba-wasm"
             target="_blank"
@@ -113,11 +122,10 @@ export function AppLayout() {
           >
             mgba-wasm
           </a>
-          .
-          {' '}Fonts: Press Start 2P by Christian Robertson &amp; VT323 by Peter Hull
-          {' '}(SIL Open Font License 1.1).
-          {' '}Game Boy Advance is a trademark of Nintendo Co., Ltd.
-          {' '}This app is not affiliated with or endorsed by Nintendo.
+          . Fonts: Press Start 2P by Christian Robertson &amp; VT323 by Peter
+          Hull (SIL Open Font License 1.1). Game Boy Advance is a trademark of
+          Nintendo Co., Ltd. This app is not affiliated with or endorsed by
+          Nintendo.
         </p>
       </footer>
 
@@ -213,7 +221,7 @@ export function AppLayout() {
 
         .app-layout__footer-text {
           font-family: var(--font-pixel);
-          font-size: 0.28rem;
+          font-size: 0.4rem;
           color: var(--color-text-muted);
           opacity: 0.5;
           letter-spacing: 0.06em;

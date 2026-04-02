@@ -1,31 +1,33 @@
-import { useRef } from 'react';
-import { emulatorService } from '../../services/emulatorService';
-import { useEmulatorStore } from '../../store/emulatorStore';
+import { useRef } from "react";
+import { emulatorService } from "../../services/emulatorService";
+import { useEmulatorStore } from "../../store/emulatorStore";
 
 export function RomLoader() {
-  const romInputRef  = useRef<HTMLInputElement>(null);
+  const romInputRef = useRef<HTMLInputElement>(null);
   const saveInputRef = useRef<HTMLInputElement>(null);
 
   const romLoaded = useEmulatorStore((s) => s.romLoaded);
-  const gameName  = useEmulatorStore((s) => s.gameName);
-  const status    = useEmulatorStore((s) => s.status);
+  const gameName = useEmulatorStore((s) => s.gameName);
+  const status = useEmulatorStore((s) => s.status);
   const setRomLoaded = useEmulatorStore((s) => s.setRomLoaded);
-  const setError     = useEmulatorStore((s) => s.setError);
+  const setError = useEmulatorStore((s) => s.setError);
 
-  const isLoading = status === 'loading';
+  const isLoading = status === "loading";
 
-  const MAX_ROM_SIZE  = 32 * 1024 * 1024; // 32 MB
-  const MAX_SAVE_SIZE = 256 * 1024;       // 256 KB
+  const MAX_ROM_SIZE = 32 * 1024 * 1024; // 32 MB
+  const MAX_SAVE_SIZE = 256 * 1024; // 256 KB
 
   async function handleRomChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
 
     // Reset the input so the same file can be re-selected if needed
-    e.target.value = '';
+    e.target.value = "";
 
     if (file.size > MAX_ROM_SIZE) {
-      setError(`ROM file too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum is 32 MB.`);
+      setError(
+        `ROM file too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum is 32 MB.`,
+      );
       return;
     }
 
@@ -34,7 +36,9 @@ export function RomLoader() {
       if (accepted) {
         setRomLoaded(file.name);
       } else {
-        setError(`ROM rejected by emulator: "${file.name}" may be unsupported or corrupt.`);
+        setError(
+          `ROM rejected by emulator: "${file.name}" may be unsupported or corrupt.`,
+        );
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -46,10 +50,12 @@ export function RomLoader() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    e.target.value = '';
+    e.target.value = "";
 
     if (file.size > MAX_SAVE_SIZE) {
-      setError(`Save file too large (${(file.size / 1024).toFixed(0)} KB). Maximum is 256 KB.`);
+      setError(
+        `Save file too large (${(file.size / 1024).toFixed(0)} KB). Maximum is 256 KB.`,
+      );
       return;
     }
 
@@ -97,13 +103,13 @@ export function RomLoader() {
       <div className="rom-loader__actions">
         <button
           type="button"
-          className={`btn btn--primary rom-loader__btn ${isLoading ? '' : ''}`}
+          className={`btn btn--primary rom-loader__btn ${isLoading ? "" : ""}`}
           onClick={() => romInputRef.current?.click()}
           disabled={isLoading}
           aria-label="Load a GBA ROM file"
         >
           <span className="rom-loader__btn-icon">[</span>
-          {romLoaded ? 'CHANGE ROM' : 'LOAD ROM'}
+          {romLoaded ? "CHANGE ROM" : "LOAD ROM"}
           <span className="rom-loader__btn-icon">]</span>
         </button>
 
@@ -113,7 +119,11 @@ export function RomLoader() {
           onClick={() => saveInputRef.current?.click()}
           disabled={isLoading}
           aria-label="Load a save file (.sav)"
-          title={!romLoaded ? 'Load a ROM first, or stage a save for when the ROM loads' : 'Load save file'}
+          title={
+            !romLoaded
+              ? "Load a ROM first, or stage a save for when the ROM loads"
+              : "Load save file"
+          }
         >
           <span className="rom-loader__btn-icon">[</span>
           LOAD SAVE
@@ -122,13 +132,12 @@ export function RomLoader() {
       </div>
 
       {/* Format hint */}
-      <p className="rom-loader__hint">
-        Accepts .gba / .gbc / .gb / .sav
-      </p>
+      <p className="rom-loader__hint">Accepts .gba / .gbc / .gb / .sav</p>
 
       {/* Legal disclaimer */}
       <p className="rom-loader__disclaimer">
-        You must own a legal copy of any ROM file you load. This app does not distribute ROM files.
+        You must own a legal copy of any ROM file you load. This app does not
+        distribute ROM files.
       </p>
 
       <style>{`
@@ -200,7 +209,7 @@ export function RomLoader() {
 
         .rom-loader__disclaimer {
           font-family: var(--font-pixel);
-          font-size: 0.3rem;
+          font-size: 0.5rem;
           color: var(--color-text-muted);
           opacity: 0.6;
           letter-spacing: 0.06em;
