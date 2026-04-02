@@ -81,6 +81,20 @@ export function AppLayout() {
 
   const handleToggleFullscreen = useCallback(async () => {
     if (!emulatorWrapRef.current) return;
+
+    // iOS Safari and some PWA environments don't support the Fullscreen API.
+    // Fall back to simulated fullscreen via position:fixed controlled by store state.
+    if (!document.fullscreenEnabled) {
+      const next = !isFullscreen;
+      setIsFullscreen(next);
+      if (next) {
+        try {
+          await (screen.orientation as any).lock('landscape');
+        } catch { /* not supported or not allowed */ }
+      }
+      return;
+    }
+
     try {
       if (!document.fullscreenElement) {
         await emulatorWrapRef.current.requestFullscreen();
@@ -97,7 +111,7 @@ export function AppLayout() {
       // where the button shows "EXIT FS" but the browser is not in fullscreen.
       setIsFullscreen(!!document.fullscreenElement);
     }
-  }, [setIsFullscreen]);
+  }, [setIsFullscreen, isFullscreen]);
 
   return (
     <div className="app-layout">
@@ -328,10 +342,18 @@ export function AppLayout() {
         }
 
         /* ── Fullscreen mode ── */
-        /* Include :fullscreen / :-webkit-full-screen so the layout is correct
-           in the brief gap between the browser entering fullscreen and React
-           re-rendering the .is-fullscreen class onto the element. */
-        .app-layout__emulator-inner.is-fullscreen,
+        /* Simulated fullscreen (iOS / browsers without Fullscreen API):
+           uses position:fixed so the element covers the viewport in normal flow. */
+        .app-layout__emulator-inner.is-fullscreen {
+          position: fixed;
+          inset: 0;
+          z-index: 9999;
+          background: #000;
+          overflow: hidden;
+        }
+        /* Native fullscreen: browser controls sizing, position:relative is correct.
+           Defined after .is-fullscreen so it wins when both selectors match
+           (native fullscreen also sets the is-fullscreen class via fullscreenchange). */
         .app-layout__emulator-inner:fullscreen,
         .app-layout__emulator-inner:-webkit-full-screen {
           position: relative;
