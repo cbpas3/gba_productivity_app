@@ -568,6 +568,7 @@ Tests use synthetic save buffers with R/S-style offsets (game code 0). `detectGa
 45. **Reward Center Visual Fixes**: Fixed a bug where percentage values were not displayed alongside the '%EXP' label in the Queued Rewards list. Additionally, corrected the pulse animation on the 'PENDING' numeric value from a red box-shadow (`badge-pulse`) to a proper yellow text glow (`text-pulse-yellow`).
 46. **Tutorial Modal Addition**: Implemented a first-time visitor onboarding `TutorialModal` overlay explaining the core mechanics (load ROM, complete tasks, claim rewards).
 47. **UI Zustand Store**: Created `useUiStore` using `persist` middleware mapped to `gba-ui-prefs` in localStorage to track when a user checks "Never show this again" on the tutorial modal.
+48. **One-Handed Mode**: Implemented a `mobileControlAlignment` setting in `useUiStore` (defaulting to 'default', with 'left' and 'right' options). Added a toggle button in `GbaControls.tsx` visible only on mobile, pushing the D-pad and Action buttons entirely to the left or right side with CSS Flexbox for ergonomic one-handed use, while retaining strict touch handling.
 
 ---
 

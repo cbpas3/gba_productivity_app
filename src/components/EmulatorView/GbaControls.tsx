@@ -1,5 +1,6 @@
 import { emulatorService } from '../../services/emulatorService';
 import type { GbaButton } from '../../types/emulator';
+import { useUiStore } from '../../store/uiStore';
 
 interface ControlButtonProps {
   button: GbaButton;
@@ -60,8 +61,17 @@ function ControlButton({ button, label, className, 'aria-label': ariaLabel }: Co
 }
 
 export function GbaControls() {
+  const alignment = useUiStore((s) => s.mobileControlAlignment);
+  const setAlignment = useUiStore((s) => s.setMobileControlAlignment);
+
+  const toggleAlignment = () => {
+    if (alignment === 'default') setAlignment('left');
+    else if (alignment === 'left') setAlignment('right');
+    else setAlignment('default');
+  };
+
   return (
-    <div className="gba-controls" role="group" aria-label="GBA controller">
+    <div className={`gba-controls gba-controls--align-${alignment}`} role="group" aria-label="GBA controller">
 
       {/* ── Shoulder buttons ── */}
       <div className="gba-controls__shoulders">
@@ -71,6 +81,14 @@ export function GbaControls() {
           className="gba-controls__shoulder gba-controls__shoulder--l"
           aria-label="L shoulder button"
         />
+        <button
+          className="gba-controls__alignment-toggle"
+          onClick={toggleAlignment}
+          aria-label="Toggle one-handed mode"
+          type="button"
+        >
+          {alignment === 'default' ? 'L/R' : alignment === 'left' ? 'LEFT' : 'RIGHT'}
+        </button>
         <ControlButton
           button="R"
           label="R"
@@ -191,6 +209,10 @@ export function GbaControls() {
         }
         .gba-controls__shoulder--l { border-radius: var(--radius-md) var(--radius-sm) var(--radius-sm) var(--radius-sm); }
         .gba-controls__shoulder--r { border-radius: var(--radius-sm) var(--radius-md) var(--radius-sm) var(--radius-sm); }
+
+        .gba-controls__alignment-toggle {
+          display: none;
+        }
 
         /* ── Body row ── */
         .gba-controls__body {
@@ -335,8 +357,33 @@ export function GbaControls() {
             padding: var(--space-2) var(--space-2) 40px var(--space-2);
             position: relative;
           }
+          .gba-controls__alignment-toggle {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--color-border-subtle);
+            border-radius: var(--radius-sm);
+            color: var(--color-text-secondary);
+            font-family: var(--font-pixel);
+            font-size: 0.35rem;
+            padding: 0 8px;
+            cursor: pointer;
+            z-index: 10;
+          }
+          .gba-controls__alignment-toggle:active {
+            background: rgba(0, 0, 0, 0.4);
+          }
           .gba-controls__body {
             justify-content: space-between;
+          }
+          .gba-controls--align-left .gba-controls__body {
+            justify-content: flex-start;
+            gap: 32px;
+          }
+          .gba-controls--align-right .gba-controls__body {
+            justify-content: flex-end;
+            gap: 32px;
           }
           .gba-controls__center {
             position: absolute;
