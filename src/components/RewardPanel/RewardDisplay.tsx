@@ -1,42 +1,46 @@
-import type { Reward, RewardType } from '../../types/reward';
-import { useRewardStore } from '../../store/rewardStore';
-import { RewardLog } from './RewardLog';
+import type { Reward, RewardType } from "../../types/reward";
+import { useRewardStore } from "../../store/rewardStore";
+import { RewardLog } from "./RewardLog";
 
 const REWARD_ICONS: Record<RewardType, string> = {
-  give_item:              '*',
-  add_experience:         'E',
-  add_experience_percent: '%',
-  boost_evs:              'V',
-  set_ivs:                '!',
-  heal_pokemon:           '+',
-  teach_move:             'M',
+  give_item: "*",
+  add_experience: "E",
+  add_experience_percent: "%",
+  boost_evs: "V",
+  set_ivs: "!",
+  heal_pokemon: "+",
+  teach_move: "M",
 };
 
 const REWARD_LABELS: Record<RewardType, string> = {
-  give_item:              'Rare Candy',
-  add_experience:         '+EXP',
-  add_experience_percent: '%EXP',
-  boost_evs:              'EV Boost',
-  set_ivs:                'Perfect IVs',
-  heal_pokemon:           'Full Heal',
-  teach_move:             'New Move',
+  give_item: "Rare Candy",
+  add_experience: "+EXP",
+  add_experience_percent: "%EXP",
+  boost_evs: "EV Boost",
+  set_ivs: "Perfect IVs",
+  heal_pokemon: "Full Heal",
+  teach_move: "New Move",
 };
 
 function getRewardValueShort(reward: Reward): string {
   const { payload } = reward;
   switch (payload.kind) {
-    case 'experience_percent': return `${payload.percent}% `;
-    case 'experience':         return `+${payload.amount} `;
-    case 'evs':                return `+${payload.amount} `;
-    default:                   return '';
+    case "experience_percent":
+      return `${payload.percent}% `;
+    case "experience":
+      return `+${payload.amount} `;
+    case "evs":
+      return `+${payload.amount} `;
+    default:
+      return "";
   }
 }
 
 export function RewardDisplay() {
   const pendingRewards = useRewardStore((s) => s.pendingRewards);
-  const rewardHistory  = useRewardStore((s) => s.rewardHistory);
-  const isClaiming     = useRewardStore((s) => s.isClaiming);
-  const claimAll       = useRewardStore((s) => s.claimAll);
+  const rewardHistory = useRewardStore((s) => s.rewardHistory);
+  const isClaiming = useRewardStore((s) => s.isClaiming);
+  const claimAll = useRewardStore((s) => s.claimAll);
 
   const pendingCount = pendingRewards.length;
   const totalApplied = rewardHistory.filter((r) => r.success).length;
@@ -49,7 +53,9 @@ export function RewardDisplay() {
       </div>
 
       <div className="reward-display__counters">
-        <div className={`reward-display__counter ${pendingCount > 0 ? 'reward-display__counter--pending' : ''}`}>
+        <div
+          className={`reward-display__counter ${pendingCount > 0 ? "reward-display__counter--pending" : ""}`}
+        >
           <span className="reward-display__counter-value">{pendingCount}</span>
           <span className="reward-display__counter-label">PENDING</span>
         </div>
@@ -78,7 +84,8 @@ export function RewardDisplay() {
                 {REWARD_ICONS[reward.type]}
               </span>
               <span className="reward-display__pending-label">
-                {getRewardValueShort(reward)}{REWARD_LABELS[reward.type]}
+                {getRewardValueShort(reward)}
+                {REWARD_LABELS[reward.type]}
               </span>
               <span className="reward-display__pending-slot">
                 Slot {reward.targetSlot + 1}
@@ -100,7 +107,9 @@ export function RewardDisplay() {
               onClick={claimAll}
               disabled={isClaiming}
             >
-              {isClaiming ? 'APPLYING...' : `CLAIM ${pendingCount} REWARD${pendingCount !== 1 ? 'S' : ''}`}
+              {isClaiming
+                ? "APPLYING..."
+                : `CLAIM ${pendingCount} REWARD${pendingCount !== 1 ? "S" : ""}`}
             </button>
           </div>
         </div>
