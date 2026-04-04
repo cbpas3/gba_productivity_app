@@ -356,7 +356,10 @@ export function GbaControls() {
           box-shadow: 0 1px 0 #7F5200, 0 0 14px rgba(255,171,0,0.8);
         }
 
-        @media (max-width: 768px) {
+        /* Use pointer type rather than viewport width to detect touch devices.
+           This ensures mobile controls show correctly in landscape orientation,
+           where a phone's width exceeds 768px but input is still touch-based. */
+        @media (pointer: coarse) {
           .gba-controls {
             width: 100%;
             padding: var(--space-2) var(--space-2) 40px var(--space-2);

@@ -12,7 +12,7 @@ A **Vite + React + TypeScript** progressive web app (PWA) that embeds the mGBA G
 - **Emulator**: `@thenick775/mgba-wasm` ^2.4.1 — Emscripten-compiled mGBA with an IndexedDB-backed virtual filesystem (VFS)
 - **PWA**: Service worker (`public/sw.js`) + web app manifest (`public/manifest.webmanifest`) for offline caching and installability
 - **Run dev**: `npm run dev` (from `/Users/cbpas/Projects/gba_productivity_app`)
-- **Tests**: `npx vitest run` — 7 test files, 121 tests, all passing as of session 6
+- **Tests**: `npx vitest run` — 7 test files, 121 tests, all passing as of session 14
 - **Fonts**: Self-hosted (Press Start 2P + VT323 woff2 in `src/styles/fonts/`) — works fully offline
 
 ---
@@ -451,6 +451,12 @@ Typed, singleton event bus. Events:
 - `onPointerCancel` and `onTouchCancel` called `preventDefault()` but never `releaseButton()`. Button stayed pressed forever after an OS interruption.
 - Fix: Both cancel handlers now call `emulatorService.releaseButton(button)`.
 
+### ✅ Fixed: On-screen controls hidden in mobile landscape fullscreen (Session 14)
+- **Root cause**: `@media (min-width: 769px)` in `AppLayout.tsx` detected "desktop" and hid mobile touch controls in fullscreen. A phone in landscape has a viewport width ≥ 844px, triggering that rule and making the on-screen controller disappear.
+- **Fix 1** (`AppLayout.tsx`): Changed the two width-based breakpoints to pointer-type queries — `@media (pointer: fine)` (mouse/trackpad devices, hides controls in fullscreen) and `@media (pointer: coarse)` (touch devices, shows ghost-overlay controls). Pointer type is orientation-independent.
+- **Fix 2** (`GbaControls.tsx`): Same change — `@media (max-width: 768px)` → `@media (pointer: coarse)` for all mobile-specific layout styles (alignment toggle visibility, body `justify-content` variants, center cluster absolute positioning).
+- **Fix 3** (`AppLayout.tsx`): Added `isPortrait` state (`window.matchMedia('(orientation: portrait)')` with a `change` listener) and `isTouchDevice` ref (`window.matchMedia('(pointer: coarse)').matches`). When `isFullscreen && isTouchDevice.current && isPortrait`, renders a non-blocking rotate-hint overlay (spinning phone icon + "ROTATE FOR BEST EXPERIENCE") with `pointer-events: none` so it doesn't interfere with touch input.
+
 ### ✅ Fixed: Recurring task shows stale completion timestamp after reset (Session 9)
 - **Root cause**: `resetRecurringTasks` reset `status` and `lastCompletedAt` but left `completedAt` intact. `TaskItem` renders `task.completedAt` unconditionally, so a reset task showed "PENDING" badge alongside a completion time.
 - **Fix**: Added `completedAt: undefined` to the reset object in `taskStore.resetRecurringTasks`.
@@ -499,6 +505,11 @@ Typed, singleton event bus. Events:
 ### ✅ Fixed: `initializing` flag never reset on success, blocking future re-init (Session 11)
 - **Root cause**: `EmulatorServiceImpl.initializing` was reset to `false` in the `catch` block but not on the success path. While `module !== null` covers the normal re-entry guard, if `module` were ever cleared the stuck `true` flag would silently block re-initialization with no error or log.
 - **Fix** (`emulatorService.ts`): Added `this.initializing = false` on the success path before `setStatus("idle")`.
+
+### ✅ Fixed: Fullscreen button does nothing on iOS PWA and Chrome (Session 13)
+- **Root cause**: iOS Safari (including PWA mode) does not implement the Fullscreen API — `document.fullscreenEnabled` is `false` and `requestFullscreen` is undefined. Calling it threw silently and fell into the catch, which only synced the store from `document.fullscreenElement` (always `null` on iOS), leaving the UI unchanged.
+- **Fix 1** (`AppLayout.tsx`, JS): `handleToggleFullscreen` now checks `document.fullscreenEnabled` before calling the API. When `false`, it takes a simulated-fullscreen path: toggles `isFullscreen` in the store directly, then attempts `screen.orientation.lock('landscape')` (still no-ops on iOS without error). `isFullscreen` added to `useCallback` deps since the simulated path reads it.
+- **Fix 2** (`AppLayout.tsx`, CSS): Split the former combined selector into two rules. `.is-fullscreen` now uses `position: fixed; inset: 0; z-index: 9999` — this makes the element cover the viewport in normal document flow (required for simulated mode). `:fullscreen` / `:-webkit-full-screen` keep `position: relative; width: 100%; height: 100%` and appear *after* in the sheet, so when native fullscreen is active and the class is also set, the native rule's `position: relative` wins (the browser's fullscreen context already handles sizing).
 
 ### ⚠️ Known: FireRed first-save incomplete sections
 - FireRed's very first in-game save may not write all 14 sections to the save file. Section ID 1 (party data) can be missing, causing `readPartyPokemon` to return null.
@@ -643,6 +654,23 @@ Tests use synthetic save buffers with R/S-style offsets (game code 0). `detectGa
 66. **Fast-forward post-init fix**: `setFastForward` now called inside `initialize().then()` so persisted 2x state is always applied to a fresh or retried module.
 67. **`initializing` flag success-path reset**: `this.initializing = false` added on the success path in `emulatorService.initialize()`.
 
+### Session 12: Global Style System Overhaul
+68. **Dark theme system**: Refactored `globals.css` to a modern, high-contrast dark palette — backgrounds in near-black blue-tinted slates (`#0D0F14` → `#161B26`), accent colors reduced from neon-saturated to muted sky/emerald/amber/rose (`#38BDF8`, `#34D399`, `#FBBF24`, `#F87171`), purple system moved from heavy neon to indigo-based (`#6366F1` primary). Shadows changed from flat color-glow to elevation-based with subtle colored halos.
+69. **Typography stack**: `--font-ui` and `--font-retro` both changed from VT323 / custom fonts to `system-ui, -apple-system, ...` for clean, legible body text. `--font-pixel` retains Press Start 2P exclusively for GBA-identity elements (button labels, section headers). Headings (`h1–h6`) still use `--font-pixel`.
+70. **Font smoothing**: Added `-webkit-font-smoothing: antialiased` and `text-rendering: optimizeLegibility`. Removed `image-rendering: pixelated` and `font-smoothing: none` that were applied globally.
+71. **GBA button palette updated**: Button colors aligned to new accent system — A button `#F43F5E`, B button `#FBBF24`, D-pad `#1E293B`, L/R `#293548`, Select/Start `#334155`.
+
+### Session 13: iOS PWA Fullscreen Fallback
+72. **iOS fullscreen fallback**: iOS Safari (including PWA mode) does not implement the Fullscreen API — `document.fullscreenEnabled` is `false` and `requestFullscreen` is undefined. The button previously did nothing on iOS.
+73. **Fix — JS path** (`AppLayout.tsx`): `handleToggleFullscreen` checks `document.fullscreenEnabled` first. When `false` (iOS/Safari), it takes a simulated-fullscreen path: toggles `isFullscreen` in the store directly, then attempts `screen.orientation.lock('landscape')` (best-effort, still no-ops on iOS without error). `isFullscreen` added to `useCallback` deps.
+74. **Fix — CSS split** (`AppLayout.tsx`): `.is-fullscreen` now uses `position: fixed; inset: 0; z-index: 9999` (covers viewport in normal document flow — required for simulated mode). `:fullscreen` / `:-webkit-full-screen` keep `position: relative; width: 100%; height: 100%` and appear *after* in the stylesheet, so when native fullscreen is active and the class is also set, the native rule's `position: relative` wins (the browser's fullscreen context already handles sizing).
+
+### Session 14: Mobile Landscape Fullscreen Fix
+75. **Root cause diagnosed**: Width-based media query `@media (min-width: 769px)` in `AppLayout.tsx` was used to detect "desktop" and hide mobile controls in fullscreen. Phones in landscape orientation have viewport widths ≥ 844px, so they matched the desktop rule and the on-screen controller disappeared.
+76. **Pointer-type media queries** (`AppLayout.tsx`): Replaced `@media (min-width: 769px)` → `@media (pointer: fine)` (mouse/trackpad) and `@media (max-width: 768px)` → `@media (pointer: coarse)` (touch) throughout fullscreen control visibility rules. Pointer type is orientation-independent.
+77. **Same fix in `GbaControls.tsx`**: `@media (max-width: 768px)` → `@media (pointer: coarse)` for all mobile-specific layout styles (alignment toggle, body layout, center cluster absolute positioning).
+78. **Rotate hint overlay** (`AppLayout.tsx`): Added `isTouchDevice` ref (`window.matchMedia('(pointer: coarse)').matches`) and `isPortrait` state from `window.matchMedia('(orientation: portrait)')` with a `change` listener. When `isFullscreen && isTouchDevice.current && isPortrait`, a non-blocking overlay with a spinning phone icon and "ROTATE FOR BEST EXPERIENCE" text is shown using `pointer-events: none` so it never interferes with touch input. Since iOS cannot be programmatically rotated, this politely prompts the user to tilt the phone.
+
 ---
 
 ## 14. Next Steps (Suggested)
@@ -654,4 +682,6 @@ Tests use synthetic save buffers with R/S-style offsets (game code 0). `detectGa
 3. **PWA enhancements** — add offline fallback page, background sync for task persistence, push notifications for task reminders, and app update prompts when the service worker detects a new version.
 
 4. **Service worker cache versioning** — `CACHE_NAME = 'gba-quest-v1'` is hardcoded in `public/sw.js`. Consider updating the name to match the new branding and/or injecting a build hash at build time (or using `vite-plugin-pwa`) for automatic cache busting on deploys.
+
+5. **`vercel.json` COOP/COEP headers** — for production deployment, add `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp` headers via a `vercel.json` file (currently only configured in `vite.config.ts` for dev).
 

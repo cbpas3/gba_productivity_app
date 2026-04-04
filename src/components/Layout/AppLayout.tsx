@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect, useCallback, useState } from "react";
 import { Header } from "./Header";
 import { TutorialModal } from "../TutorialModal";
 import { TaskForm, TaskList, TaskBoardModal, BulkImportModal } from "../TaskManager";
@@ -21,6 +21,16 @@ export function AppLayout() {
   const toggleFastForward = useEmulatorStore((s) => s.toggleFastForward);
   const isFullscreen = useEmulatorStore((s) => s.isFullscreen);
   const setIsFullscreen = useEmulatorStore((s) => s.setIsFullscreen);
+
+  // Touch-device detection — stable for the lifetime of the session.
+  const isTouchDevice = useRef(
+    typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
+  );
+  // Portrait orientation state — updated via MediaQueryList so we can show
+  // the rotate hint when the user enters fullscreen in portrait mode.
+  const [isPortrait, setIsPortrait] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(orientation: portrait)').matches
+  );
 
   const initEmulator = useCallback(() => {
     if (!canvasRef.current) return;
@@ -78,6 +88,14 @@ export function AppLayout() {
     document.addEventListener("fullscreenchange", handleFsChange);
     return () => document.removeEventListener("fullscreenchange", handleFsChange);
   }, [setIsFullscreen]);
+
+  // Track orientation so we can show a rotate hint when fullscreen + portrait + touch.
+  useEffect(() => {
+    const mq = window.matchMedia('(orientation: portrait)');
+    const handler = (e: MediaQueryListEvent) => setIsPortrait(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
 
   const handleToggleFullscreen = useCallback(async () => {
     if (!emulatorWrapRef.current) return;
@@ -190,6 +208,14 @@ export function AppLayout() {
                   {isFullscreen ? '✖ EXIT FS' : '🔲 FULLSCREEN'}
                 </button>
               </div>
+
+              {/* Rotate hint: shown when fullscreen on a touch device in portrait */}
+              {isFullscreen && isTouchDevice.current && isPortrait && (
+                <div className="app-layout__rotate-hint" aria-live="polite" aria-label="Rotate your device for best experience">
+                  <span className="app-layout__rotate-icon">↻</span>
+                  <span className="app-layout__rotate-text">ROTATE DEVICE</span>
+                </div>
+              )}
 
               <GbaControls />
               <RomLoader />
@@ -390,15 +416,53 @@ export function AppLayout() {
           z-index: 100;
           width: auto;
         }
-        /* Desktop fullscreen: hide on-screen controller — keyboard is available */
-        @media (min-width: 769px) {
+        /* Rotate hint: centred overlay, pointer-events:none so it never blocks touches */
+        .app-layout__rotate-hint {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          z-index: 200;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 8px;
+          pointer-events: none;
+          animation: rotate-hint-fade 1.8s ease-in-out infinite;
+        }
+        .app-layout__rotate-icon {
+          font-size: 2.5rem;
+          color: rgba(255, 255, 255, 0.85);
+          display: block;
+          animation: rotate-spin 2s linear infinite;
+        }
+        .app-layout__rotate-text {
+          font-family: var(--font-pixel);
+          font-size: 0.45rem;
+          color: rgba(255, 255, 255, 0.85);
+          letter-spacing: 0.12em;
+          text-shadow: 0 0 8px rgba(0, 229, 255, 0.6);
+        }
+        @keyframes rotate-spin {
+          from { transform: rotate(0deg); }
+          to   { transform: rotate(360deg); }
+        }
+        @keyframes rotate-hint-fade {
+          0%, 100% { opacity: 0.5; }
+          50%       { opacity: 1; }
+        }
+
+        /* Touch devices in fullscreen: show ghost controls regardless of screen width.
+           (pointer: coarse) matches phones and tablets; (pointer: fine) matches mouse
+           devices where keyboard handles all input and controls can be hidden. */
+        @media (pointer: fine) {
           .app-layout__emulator-inner.is-fullscreen .gba-controls {
             display: none;
           }
         }
 
-        /* Mobile fullscreen: transparent ghost controls spread across the bottom */
-        @media (max-width: 768px) {
+        /* Touch-device fullscreen: transparent ghost controls spread across the bottom */
+        @media (pointer: coarse) {
           .app-layout__emulator-inner.is-fullscreen .gba-controls {
             position: absolute;
             bottom: 0;
