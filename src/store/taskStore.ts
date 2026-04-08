@@ -4,17 +4,11 @@ import type { Task, TaskPriority, TaskRecurrence } from '../types/task';
 import type { Reward } from '../types/reward';
 import { eventBus } from './eventBus';
 import { useRewardStore } from './rewardStore';
+import { useAuthStore } from './authStore';
 import * as syncService from '../services/syncService';
 
-// Lazy reference to authStore to avoid circular imports at module init time.
 function getUserId(): string | null {
-  // Dynamic require pattern — resolved at call time, never at module load.
-  return (
-    (
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      require('./authStore') as { useAuthStore: { getState: () => { user: { id: string } | null } } }
-    ).useAuthStore.getState().user?.id ?? null
-  );
+  return useAuthStore.getState().user?.id ?? null;
 }
 
 const EXP_PERCENT: Record<TaskPriority, number> = {

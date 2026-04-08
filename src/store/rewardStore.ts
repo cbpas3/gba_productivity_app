@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Reward } from '../types/reward';
 import { eventBus } from './eventBus';
+import { useAuthStore } from './authStore';
 import * as syncService from '../services/syncService';
 
 interface RewardHistoryEntry {
@@ -22,14 +23,8 @@ interface RewardState {
   hydratePendingRewards: (rewards: Reward[]) => void;
 }
 
-// Lazy reference to authStore — resolved at call time to avoid circular imports.
 function getUserId(): string | null {
-  return (
-    (
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      require('./authStore') as { useAuthStore: { getState: () => { user: { id: string } | null } } }
-    ).useAuthStore.getState().user?.id ?? null
-  );
+  return useAuthStore.getState().user?.id ?? null;
 }
 
 const MAX_HISTORY = 100;
