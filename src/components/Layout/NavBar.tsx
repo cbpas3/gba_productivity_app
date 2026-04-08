@@ -1,0 +1,178 @@
+import { useUiStore } from '../../store/uiStore';
+import { useRewardStore } from '../../store/rewardStore';
+
+export function NavBar() {
+  const activeTab = useUiStore((s) => s.activeTab);
+  const setActiveTab = useUiStore((s) => s.setActiveTab);
+  const pendingCount = useRewardStore((s) => s.pendingRewards.length);
+
+  return (
+    <nav className="nav-bar" role="navigation" aria-label="Main navigation">
+      <div className="nav-bar__inner">
+        <button
+          className={`nav-bar__tab ${activeTab === 'tasks' ? 'nav-bar__tab--active' : ''}`}
+          onClick={() => setActiveTab('tasks')}
+          aria-current={activeTab === 'tasks' ? 'page' : undefined}
+        >
+          <span className="nav-bar__tab-icon">📋</span>
+          <span className="nav-bar__tab-label">Tasks</span>
+        </button>
+
+        <button
+          className={`nav-bar__tab ${activeTab === 'play' ? 'nav-bar__tab--active' : ''}`}
+          onClick={() => setActiveTab('play')}
+          aria-current={activeTab === 'play' ? 'page' : undefined}
+        >
+          <span className="nav-bar__tab-icon">🎮</span>
+          <span className="nav-bar__tab-label">Play</span>
+          {pendingCount > 0 && (
+            <span className="nav-bar__badge" aria-label={`${pendingCount} rewards pending`}>
+              {pendingCount}
+            </span>
+          )}
+        </button>
+      </div>
+
+      <style>{`
+        /* ── Desktop: top nav bar below header ── */
+        .nav-bar {
+          background: var(--color-surface-0, #0D0F14);
+          border-bottom: 1px solid var(--color-border-subtle);
+          position: sticky;
+          top: 0;
+          z-index: 50;
+          flex-shrink: 0;
+        }
+
+        .nav-bar__inner {
+          display: flex;
+          align-items: center;
+          gap: var(--space-1);
+          padding: var(--space-2) var(--space-5);
+          max-width: 1400px;
+          margin: 0 auto;
+          width: 100%;
+          box-sizing: border-box;
+        }
+
+        .nav-bar__tab {
+          position: relative;
+          display: flex;
+          align-items: center;
+          gap: var(--space-2);
+          padding: var(--space-2) var(--space-4);
+          background: transparent;
+          border: 1px solid transparent;
+          border-radius: var(--radius-sm);
+          color: var(--color-text-muted);
+          cursor: pointer;
+          font-family: var(--font-pixel);
+          font-size: 0.5rem;
+          letter-spacing: 0.1em;
+          transition: all var(--transition-fast);
+        }
+
+        .nav-bar__tab:hover {
+          color: var(--color-text-primary);
+          border-color: var(--color-border-subtle);
+          background: var(--color-surface-1);
+        }
+
+        .nav-bar__tab--active {
+          color: var(--color-accent-cyan);
+          border-color: var(--color-accent-cyan);
+          background: rgba(0, 229, 255, 0.08);
+          box-shadow: 0 0 8px rgba(0, 229, 255, 0.2);
+        }
+
+        .nav-bar__tab--active::after {
+          content: '';
+          position: absolute;
+          bottom: -1px;
+          left: 0;
+          right: 0;
+          height: 2px;
+          background: var(--color-accent-cyan);
+          border-radius: 1px;
+          box-shadow: 0 0 6px rgba(0, 229, 255, 0.6);
+        }
+
+        .nav-bar__tab-icon {
+          font-size: 1rem;
+          line-height: 1;
+        }
+
+        .nav-bar__tab-label {
+          font-family: var(--font-pixel);
+          font-size: 0.5rem;
+        }
+
+        .nav-bar__badge {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 16px;
+          height: 16px;
+          padding: 0 4px;
+          background: var(--color-accent-yellow, #facc15);
+          color: #1a0a2e;
+          border-radius: 8px;
+          font-family: var(--font-pixel);
+          font-size: 0.35rem;
+          font-weight: bold;
+          line-height: 1;
+          animation: badge-pulse 1.4s ease-in-out infinite;
+        }
+
+        @keyframes badge-pulse {
+          0%, 100% { box-shadow: 0 0 4px rgba(255, 214, 0, 0.4); }
+          50%       { box-shadow: 0 0 10px rgba(255, 214, 0, 0.8); }
+        }
+
+        /* ── Mobile: fixed bottom navigation bar ── */
+        @media (max-width: 768px) {
+          .nav-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            top: auto;
+            border-bottom: none;
+            border-top: 1px solid var(--color-border-subtle);
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
+            z-index: 100;
+          }
+
+          .nav-bar__inner {
+            padding: var(--space-2) var(--space-3);
+            gap: var(--space-2);
+            justify-content: space-around;
+          }
+
+          .nav-bar__tab {
+            flex: 1;
+            flex-direction: column;
+            justify-content: center;
+            gap: 4px;
+            padding: var(--space-2) var(--space-1);
+            border-radius: var(--radius-md);
+          }
+
+          .nav-bar__tab--active::after {
+            bottom: auto;
+            top: 0;
+            height: 2px;
+          }
+
+          .nav-bar__tab-icon {
+            font-size: 1.3rem;
+          }
+
+          .nav-bar__tab-label {
+            font-size: 0.38rem;
+          }
+        }
+      `}</style>
+    </nav>
+  );
+}

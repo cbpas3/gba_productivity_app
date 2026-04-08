@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 export type MobileControlAlignment = 'default' | 'left' | 'right';
+export type ActiveTab = 'tasks' | 'play';
 
 interface UiState {
   hasSeenTutorial: boolean;
@@ -12,6 +13,8 @@ interface UiState {
   setIsTaskBoardOpen: (isOpen: boolean) => void;
   isBulkImportOpen: boolean;
   setIsBulkImportOpen: (isOpen: boolean) => void;
+  activeTab: ActiveTab;
+  setActiveTab: (tab: ActiveTab) => void;
 }
 
 export const useUiStore = create<UiState>()(
@@ -25,6 +28,8 @@ export const useUiStore = create<UiState>()(
       setIsTaskBoardOpen: (isOpen) => set({ isTaskBoardOpen: isOpen }),
       isBulkImportOpen: false,
       setIsBulkImportOpen: (isOpen) => set({ isBulkImportOpen: isOpen }),
+      activeTab: 'tasks',
+      setActiveTab: (tab) => set({ activeTab: tab }),
     }),
     {
       name: 'gba-ui-prefs',
