@@ -55,8 +55,8 @@ export function SyncStatus() {
         className={`btn sync-status__btn ${isSyncingSave ? 'sync-status__btn--busy' : ''}`}
         onClick={() => forceSyncSave()}
         disabled={isSyncingSave}
-        title="Sync save to cloud"
-        aria-label="Manual save sync"
+        title="Load save from cloud"
+        aria-label="Load cloud save"
       >
         <span className={`sync-status__icon ${isSyncingSave ? 'sync-status__icon--spin' : ''}`}>
           {isSyncingSave ? '↻' : '☁'}
