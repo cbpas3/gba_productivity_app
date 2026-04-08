@@ -449,16 +449,37 @@ class EmulatorServiceImpl implements IEmulatorService {
 
   /**
    * Simulates pressing the hardware Reset button on the GBA.
-   * Performs a CPU/GPU soft-reset via quickReload() — the save chip in C heap
-   * is preserved (same as real hardware where the chip is battery-backed).
+   *
+   * A true hardware reset boots the game cold from the title screen — no save
+   * state is restored. mGBA's default quickReload() behaviour restores the
+   * auto-save snapshot (.ss file), which is an emulator-only concept that
+   * does not exist on real hardware.
+   *
+   * To suppress that we:
+   *   1. Disable restoreAutoSaveStateOnLoad so quickReload ignores snapshots.
+   *   2. Delete the .ss snapshot file so there is nothing to restore even if
+   *      the setting were re-enabled mid-reset.
+   *   3. Call quickReload() — CPU/GPU soft-reset, save chip (SRAM/Flash/EEPROM)
+   *      stays in C heap, matching real hardware where the chip is battery-backed.
+   *   4. Re-enable restoreAutoSaveStateOnLoad for normal emulator operation.
+   *
    * No-op when no game is loaded.
    */
   restart(): void {
     if (this.module === null || this.status !== 'running') return;
     try {
+      this.module.setCoreSettings({ restoreAutoSaveStateOnLoad: false });
+
+      const ssPath = this.module.autoSaveStateName;
+      if (ssPath) {
+        try { this.module.FS.unlink(ssPath); } catch { /* snapshot may not exist yet */ }
+      }
+
       this.module.quickReload();
+
+      this.module.setCoreSettings({ restoreAutoSaveStateOnLoad: true });
     } catch {
-      // Non-fatal.
+      // Non-fatal — partial failure leaves the game running.
     }
   }
 

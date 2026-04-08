@@ -1,7 +1,7 @@
 # Game Productivity App — Knowledge Base
 
 > **Purpose**: Complete project context for LLM handoff. Covers architecture, Gen III save format, Supabase cloud sync, active bugs, and session history.
-> **Last updated**: Session 16 (Manual Save Sync + SyncStatus UI)
+> **Last updated**: Session 17 (SW dev fix, staged save fix, restart button)
 
 ---
 
@@ -269,7 +269,7 @@ The 48-byte decrypted block contains 4 × 12-byte substructures in order determi
 - `FSSync()` — flushes VFS MEMFS to IndexedDB
 - `loadGame(romPath, savePathOverride?)` → `boolean` — cold-loads ROM, **re-reads VFS save from `savePathOverride ?? derived path`**
 - `quitGame()` — stops game; C core **flushes save chip to VFS** as part of teardown
-- `quickReload()` — CPU/GPU soft-reset only; **does NOT re-read VFS save** (save chip stays in C heap)
+- `quickReload()` — CPU/GPU soft-reset only; **does NOT re-read VFS save** (save chip stays in C heap). Used by `restart()` to simulate the hardware Reset button. Do NOT use for save injection — write staged saves to VFS before `loadGame()` instead.
 - `getSave()` → `Uint8Array | null` — calls `FS.readFile(saveName)` — always a VFS copy, not live memory
 - `uploadSaveOrSaveState(file, callback?)` — writes file to VFS only; **does NOT trigger any reload**
 - `setCoreSettings({restoreAutoSaveStateOnLoad: bool, ...})` — disable snapshot restore before save injection
@@ -294,7 +294,9 @@ quitGame() → flushes C save chip buffer → VFS → fires saveDataUpdatedCallb
 loadGame() → re-reads VFS save into new C save chip buffer
 ```
 
-**Implication**: To inject a modified save and have `loadGame` pick it up safely around the async C-heap flush:
+**Implication for staged cloud saves**: Write staged save to VFS *before* calling `loadGame()` — `loadGame` then reads it directly into the C heap. Writing after `loadGame` + `quickReload()` does not work because `quickReload()` never re-reads VFS.
+
+**Implication for reward injection**: To inject a modified save and have `loadGame` pick it up safely around the async C-heap flush:
 1. Disable `restoreAutoSaveStateOnLoad` and `autoSaveStateEnable`
 2. **Double-write pattern**: `FS.writeFile(save)` → `quitGame()` → wait 1000ms → `FS.writeFile(save)` again (guarantees our write survives the async flush)
 3. Delete `autoSaveStateName` (.ss file) so mGBA can't restore old EWRAM party data
@@ -382,8 +384,9 @@ Thin adapter class that implements `IPokemonCryptoService`, delegating to `lib/g
 
 ### `src/services/emulatorService.ts`
 - `initialize(canvas)` — checks COI, imports WASM, FSInit, creates VFS dirs
-- `loadRom(file)` — writes to VFS, calls loadGame, captures `saveName` + `romData`
+- `loadRom(file)` — if staged save exists, **pre-writes it to VFS before `loadGame()`** so it's read directly into C heap; then calls `loadGame`, captures `saveName` + `romData`
 - `getCurrentSave()` — tries `getSave()` first, falls back to VFS read
+- `restart()` — calls `quickReload()` (CPU soft-reset, save chip preserved); simulates hardware Reset button. No-op when not running.
 - `writeSaveAndReload(data)` — uses the **double-write pattern** (steps 2, 6, 7 throw on failure; other steps warn-and-continue):
   1. `setCoreSettings({ restoreAutoSaveStateOnLoad: false })`
   2. `FS.writeFile(savePath, ourData)` (first write — **critical, throws on failure**)
@@ -510,7 +513,7 @@ Every mutating action in `taskStore` (add, complete, delete, priority update, bu
 |---|---|---|
 | **Auto-upload** | mGBA `saveDataUpdatedCallback` fires after in-game save | 5-second debounce → `uploadSave(userId, Uint8Array)` → `saves/{userId}/game.sav`; stamps `lastSaveSyncTime` on success |
 | **Manual upload** | User clicks ☁ SYNC button in `SyncStatus` | `emulatorStore.forceSyncSave()` — reads `getCurrentSave()`, calls `uploadSave`, stamps `lastSaveSyncTime` on success, sets `isSyncingSave` for loading UI |
-| **Download** | Emulator init | `downloadSave(userId)` → `emulatorService.stageSaveForNextLoad(data)` — injected automatically on next ROM load |
+| **Download** | Emulator init | `downloadSave(userId)` → `emulatorService.stageSaveForNextLoad(data)` — pre-written to VFS *before* `loadGame()` so it loads directly into C heap |
 
 `uploadSave` copies the WASM-backed `Uint8Array` into a plain `ArrayBuffer` before creating a `Blob` (WASM may use `SharedArrayBuffer` which `Blob` rejects).
 
@@ -631,6 +634,15 @@ Every mutating action in `taskStore` (add, complete, delete, priority update, bu
 - **Root cause**: iOS Safari (including PWA mode) does not implement the Fullscreen API — `document.fullscreenEnabled` is `false` and `requestFullscreen` is undefined. Calling it threw silently and fell into the catch, which only synced the store from `document.fullscreenElement` (always `null` on iOS), leaving the UI unchanged.
 - **Fix 1** (`AppLayout.tsx`, JS): `handleToggleFullscreen` now checks `document.fullscreenEnabled` before calling the API. When `false`, it takes a simulated-fullscreen path: toggles `isFullscreen` in the store directly, then attempts `screen.orientation.lock('landscape')` (still no-ops on iOS without error). `isFullscreen` added to `useCallback` deps since the simulated path reads it.
 - **Fix 2** (`AppLayout.tsx`, CSS): Split the former combined selector into two rules. `.is-fullscreen` now uses `position: fixed; inset: 0; z-index: 9999` — this makes the element cover the viewport in normal document flow (required for simulated mode). `:fullscreen` / `:-webkit-full-screen` keep `position: relative; width: 100%; height: 100%` and appear *after* in the sheet, so when native fullscreen is active and the class is also set, the native rule's `position: relative` wins (the browser's fullscreen context already handles sizing).
+
+### ✅ Fixed: Service worker caches stale assets in dev, blocking updates (Session 17)
+- **Root cause**: `main.tsx` registered `sw.js` unconditionally — including during `npm run dev`. The SW's cache-first strategy for static assets served cached bundles on every refresh. "Clearing the cache" only worked for one load; the SW re-cached everything immediately and served those copies on the next refresh. Additionally, `CACHE_NAME = 'gba-quest-v1'` was hardcoded — the activate handler only evicts caches with *different* names, so no old entries were ever evicted in production either.
+- **Fix 1** (`main.tsx`): Wrapped SW registration in `import.meta.env.PROD` — SW is never registered during `npm run dev`.
+- **Fix 2** (`public/sw.js`): Bumped `CACHE_NAME` to `'gba-quest-v2'` to evict all `v1` cached assets on next deploy.
+
+### ✅ Fixed: Cloud save (staged) overridden by local VFS save on ROM load (Session 17)
+- **Root cause**: `emulatorService.loadRom()` called `loadGame()` first (which reads the existing local VFS save into the C heap save chip), then wrote the staged cloud save to VFS and called `quickReload()`. But `quickReload()` is a CPU-only reset — it never re-reads VFS. The C heap retained the local save; the cloud save write was immediately overwritten on the next in-game save flush.
+- **Fix** (`emulatorService.ts`): Staged save is now pre-written to VFS *before* `loadGame()`. `loadGame` reads it directly into C heap. No `quickReload()` needed. The `this.stagedSaveData = null` clear is also moved to before `loadGame` so a `loadGame` failure doesn't leave stale staged data.
 
 ### ⚠️ Known: FireRed first-save incomplete sections
 - FireRed's very first in-game save may not write all 14 sections to the save file. Section ID 1 (party data) can be missing, causing `readPartyPokemon` to return null.
@@ -815,6 +827,12 @@ Tests use synthetic save buffers with R/S-style offsets (game code 0). `detectGa
 96. **Auto-sync timestamp**: `PlayRoom.scheduleSaveUpload` now chains `.then(() => setLastSaveSyncTime(Date.now()))` after a successful debounced upload, so both upload paths keep `lastSaveSyncTime` current.
 97. **`SyncStatus.tsx`** (new at `src/components/PlayRoom/SyncStatus.tsx`): Self-contained component that gates on `useAuthStore.user` — returns `null` for offline/unauthenticated users. Shows a formatted last-synced label and a `☁ SYNC` icon button. Button disables and animates (CSS `rotate` keyframe on the `↻` character) while `isSyncingSave` is true. Date formatting uses native `Intl.DateTimeFormat` with relative bucketing ("Just now" / "N mins ago" / "Today at…" / "Yesterday at…" / absolute date).
 98. **`PlayRoom.tsx` integration**: Emulator card header refactored into `.play-room__emu-header` (flex row, `justify-content: space-between`) holding the "EMULATOR" title and `<SyncStatus />` side-by-side. Import path: `../PlayRoom/SyncStatus`.
+
+### Session 17: SW Dev Fix, Staged Save Fix, Restart Button
+99. **Service worker dev bypass** (`main.tsx`): SW registration now guarded by `import.meta.env.PROD`. In dev (`npm run dev`) no SW is ever registered, so Vite's dev server always serves live files. Cache name bumped to `gba-quest-v2` to bust all `v1` entries on next production deploy.
+100. **Staged save pre-write fix** (`emulatorService.loadRom`): Cloud save (from `stageSaveForNextLoad`) is now written to VFS *before* `loadGame()` is called, not after. Previously the save was written after `loadGame` and `quickReload()` was called, but `quickReload()` is a CPU-only reset that never re-reads VFS — so the local desktop save in C heap always survived. Now `loadGame` reads the cloud save directly into C heap. `this.stagedSaveData` is cleared before `loadGame` to avoid stale data on failure.
+101. **`restart()` method** (`IEmulatorService` + `emulatorService.ts`): New method wrapping `quickReload()`. Simulates pressing the hardware Reset button — CPU/GPU soft-reset with save chip preserved (matching real GBA behavior). No-op when not running.
+102. **Restart button** (`PlayRoom.tsx`): `↺ RST` button added to the emulator toolbar between fast-forward and fullscreen. Disabled when `romLoaded` is false. Calls `emulatorService.restart()` directly.
 
 ---
 
