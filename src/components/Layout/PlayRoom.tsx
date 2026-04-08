@@ -15,6 +15,7 @@ export function PlayRoom() {
   const setStatus = useEmulatorStore((s) => s.setStatus);
   const setError = useEmulatorStore((s) => s.setError);
   const errorMessage = useEmulatorStore((s) => s.errorMessage);
+  const romLoaded = useEmulatorStore((s) => s.romLoaded);
   const isFastForward = useEmulatorStore((s) => s.isFastForward);
   const toggleFastForward = useEmulatorStore((s) => s.toggleFastForward);
   const isFullscreen = useEmulatorStore((s) => s.isFullscreen);
@@ -177,6 +178,14 @@ export function PlayRoom() {
               title={isFastForward ? 'Normal Speed (1x)' : 'Fast Forward (2x)'}
             >
               {isFastForward ? '⏩ 2x' : '▶ 1x'}
+            </button>
+            <button
+              className="btn emu-toolbar__btn"
+              onClick={() => emulatorService.restart()}
+              title="Restart (hardware reset)"
+              disabled={!romLoaded}
+            >
+              ↺ RST
             </button>
             <button
               className={`btn emu-toolbar__btn ${isFullscreen ? 'emu-toolbar__btn--active' : ''}`}

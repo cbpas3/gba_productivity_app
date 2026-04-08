@@ -114,6 +114,20 @@ class EmulatorServiceImpl implements IEmulatorService {
       // Write ROM into the virtual filesystem.
       this.module!.FS.writeFile(romPath, romData);
 
+      // Pre-write staged cloud save BEFORE loadGame so mGBA reads it directly
+      // into the C heap save chip. Writing after loadGame + quickReload() does
+      // not work because quickReload() is a CPU-only reset that never re-reads
+      // VFS — the old save chip contents survive unchanged.
+      if (this.stagedSaveData !== null) {
+        try {
+          this.module!.FS.writeFile(savePath, this.stagedSaveData);
+          console.log("[EmulatorService] Staged save pre-written to VFS.");
+        } catch (e) {
+          console.warn("[EmulatorService] Failed to pre-write staged save:", e);
+        }
+        this.stagedSaveData = null;
+      }
+
       const accepted = this.module!.loadGame(romPath);
 
       if (!accepted) {
@@ -133,18 +147,6 @@ class EmulatorServiceImpl implements IEmulatorService {
         "[EmulatorService] ROM loaded. savePath =",
         this.currentSavePath,
       );
-
-      // Inject a staged cloud save (if any) immediately after ROM load.
-      if (this.stagedSaveData !== null) {
-        try {
-          this.module!.FS.writeFile(this.currentSavePath, this.stagedSaveData);
-          this.module!.quickReload();
-          console.log("[EmulatorService] Staged save injected and reloaded.");
-        } catch (e) {
-          console.warn("[EmulatorService] Failed to inject staged save:", e);
-        }
-        this.stagedSaveData = null;
-      }
 
       // Register the save-write callback so cloud upload triggers on every flush.
       if (this.saveCallback !== null) {
@@ -438,6 +440,23 @@ class EmulatorServiceImpl implements IEmulatorService {
     if (this.module === null) return;
     try {
       this.module.toggleInput(enabled);
+    } catch {
+      // Non-fatal.
+    }
+  }
+
+  // IEmulatorService — restart -------------------------------------------
+
+  /**
+   * Simulates pressing the hardware Reset button on the GBA.
+   * Performs a CPU/GPU soft-reset via quickReload() — the save chip in C heap
+   * is preserved (same as real hardware where the chip is battery-backed).
+   * No-op when no game is loaded.
+   */
+  restart(): void {
+    if (this.module === null || this.status !== 'running') return;
+    try {
+      this.module.quickReload();
     } catch {
       // Non-fatal.
     }
