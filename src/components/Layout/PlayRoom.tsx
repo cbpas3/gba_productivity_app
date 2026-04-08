@@ -31,22 +31,25 @@ export function PlayRoom() {
   // Debounce timer for save uploads — avoids hammering the API on every tick.
   const saveUploadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Upload the current save immediately, cancelling any pending debounce.
+  // Called both by the debounce expiry and by the visibilitychange/pagehide
+  // handlers so the upload always fires before the browser suspends the page.
+  const uploadNow = useCallback(() => {
+    const userId = useAuthStore.getState().user?.id;
+    if (!userId) return;
+    const data = emulatorService.getCurrentSave();
+    if (!data) return;
+    uploadSave(userId, data)
+      .then(() => { useEmulatorStore.getState().setLastSaveSyncTime(Date.now()); })
+      .catch((err) => console.error('[PlayRoom] save upload failed:', err));
+  }, []);
+
   const scheduleSaveUpload = useCallback(() => {
     const userId = useAuthStore.getState().user?.id;
     if (!userId) return;
-
     if (saveUploadTimer.current) clearTimeout(saveUploadTimer.current);
-    saveUploadTimer.current = setTimeout(() => {
-      const data = emulatorService.getCurrentSave();
-      if (data) {
-        uploadSave(userId, data)
-          .then(() => {
-            useEmulatorStore.getState().setLastSaveSyncTime(Date.now());
-          })
-          .catch((err) => console.error('[PlayRoom] save upload failed:', err));
-      }
-    }, 5000); // 5-second debounce
-  }, []);
+    saveUploadTimer.current = setTimeout(uploadNow, 2000); // reduced from 5s
+  }, [uploadNow]);
 
   const initEmulator = useCallback(() => {
     if (!canvasRef.current) return;
@@ -93,6 +96,28 @@ export function PlayRoom() {
       emulatorService.setSaveCallback(null);
     };
   }, [initEmulator]);
+
+  // Flush any pending save upload immediately when the page is hidden or
+  // unloaded — covers switching apps, locking the screen, or closing the tab.
+  // Without this the debounce timer is killed by the browser before it fires.
+  useEffect(() => {
+    const flush = () => {
+      if (saveUploadTimer.current) {
+        clearTimeout(saveUploadTimer.current);
+        saveUploadTimer.current = null;
+      }
+      uploadNow();
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') flush();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('pagehide', flush);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('pagehide', flush);
+    };
+  }, [uploadNow]);
 
   useEffect(() => {
     emulatorService.setFastForward(isFastForward);
