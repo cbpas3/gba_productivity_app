@@ -1,7 +1,7 @@
 # Game Productivity App — Knowledge Base
 
 > **Purpose**: Complete project context for LLM handoff. Covers architecture, Gen III save format, Supabase cloud sync, active bugs, and session history.
-> **Last updated**: Session 15 (Cloud Sync + Auth)
+> **Last updated**: Session 16 (Manual Save Sync + SyncStatus UI)
 
 ---
 
@@ -37,6 +37,8 @@ src/
       NavBar.tsx               # Tab bar (Tasks / Play / Account); fixed bottom on mobile, sticky top on desktop
       PlayRoom.tsx             # Emulator panel + RewardDisplay; handles cloud .sav upload/download
       TaskDashboard.tsx        # RewardPoolBar + Quest Log (TaskForm + TaskList)
+    PlayRoom/
+      SyncStatus.tsx           # Manual sync button + last-synced label (only shown when logged in)
     RewardPanel/               # Displays pending rewards + "CLAIM REWARDS" button
     TaskManager/               # TaskList.tsx + TaskItem.tsx + TaskBoardModal + BulkImportModal
     TutorialModal.tsx          # First-time onboarding overlay
@@ -454,6 +456,10 @@ gameName: string | null
 errorMessage: string | null
 isFastForward: boolean
 isFullscreen: boolean
+lastSaveSyncTime: number | null   // Unix ms timestamp of last successful .sav upload (auto or manual)
+isSyncingSave: boolean            // true while forceSyncSave() is in flight
+setLastSaveSyncTime(ts)           // called by PlayRoom's auto-sync debounce on upload success
+forceSyncSave()                   // manually reads getCurrentSave() + uploadSave(); updates timestamp on success
 ```
 
 ### `eventBus`
@@ -498,14 +504,27 @@ Every mutating action in `taskStore` (add, complete, delete, priority update, bu
 ### Pending Reward Sync
 `rewardStore.addPending` pushes the full `pendingRewards` array to `profiles.pending_exp` after every addition. `markBatchApplied` clears it to `[]`. `syncBootstrap.hydrateFromCloud` restores pending rewards from the profile row after sign-in.
 
-### .sav File Sync (in `PlayRoom.tsx`)
+### .sav File Sync (in `PlayRoom.tsx` + `emulatorStore.ts`)
 
 | Direction | Trigger | Detail |
 |---|---|---|
-| **Upload** | mGBA `saveDataUpdatedCallback` fires after in-game save | 5-second debounce → `uploadSave(userId, Uint8Array)` → `saves/{userId}/game.sav` |
+| **Auto-upload** | mGBA `saveDataUpdatedCallback` fires after in-game save | 5-second debounce → `uploadSave(userId, Uint8Array)` → `saves/{userId}/game.sav`; stamps `lastSaveSyncTime` on success |
+| **Manual upload** | User clicks ☁ SYNC button in `SyncStatus` | `emulatorStore.forceSyncSave()` — reads `getCurrentSave()`, calls `uploadSave`, stamps `lastSaveSyncTime` on success, sets `isSyncingSave` for loading UI |
 | **Download** | Emulator init | `downloadSave(userId)` → `emulatorService.stageSaveForNextLoad(data)` — injected automatically on next ROM load |
 
 `uploadSave` copies the WASM-backed `Uint8Array` into a plain `ArrayBuffer` before creating a `Blob` (WASM may use `SharedArrayBuffer` which `Blob` rejects).
+
+### `SyncStatus` component (`src/components/PlayRoom/SyncStatus.tsx`)
+- Renders `null` when no user is logged in (hides entirely for offline users)
+- Displays a `lastSaveSyncTime` label formatted by `formatSyncTime()`:
+  - `< 1 min` → "Just now"
+  - `< 60 min` → "N mins ago"
+  - Same calendar day → "Today at H:MM AM/PM"
+  - Previous day → "Yesterday at H:MM AM/PM"
+  - Older → "Mon D at H:MM AM/PM"
+  - `null` → "Not synced"
+- Renders a `☁ SYNC` button; shows spinning `↻` + "SYNCING…" and disables the button while `isSyncingSave === true`
+- Positioned in a flex header row (`.play-room__emu-header`) alongside the "EMULATOR" section title in `PlayRoom.tsx`
 
 ### NavBar Account Button
 - Only rendered when `isSupabaseConfigured === true`
@@ -789,6 +808,13 @@ Tests use synthetic save buffers with R/S-style offsets (game code 0). `detectGa
 91. **`PlayRoom.tsx`** (new/extracted): Contains all emulator lifecycle logic (init, fast-forward, fullscreen, rotate hint). Registers `setSaveCallback(scheduleSaveUpload)` — a 5-second debounced `uploadSave` call. On init, downloads cloud `.sav` and stages it via `emulatorService.stageSaveForNextLoad`.
 92. **`TaskDashboard.tsx`** (new): Renders `RewardPoolBar` (EXP% fill bar, `🎮 Ready to Play?` button) + Quest Log section (TaskForm + TaskList).
 93. **`Header.tsx` updated**: Displays `gameName` from `emulatorStore`. Desktop-only `📋 BOARD` button (visible at `≥ 1024px`) opens `TaskBoardModal`.
+
+### Session 16: Manual Save Sync + SyncStatus UI
+94. **`emulatorStore` extended**: Added `lastSaveSyncTime: number | null`, `isSyncingSave: boolean`, `setLastSaveSyncTime(ts)`, and `forceSyncSave()`. The store now imports `emulatorService` and `uploadSave` directly so the force-sync action is self-contained.
+95. **`forceSyncSave()` action**: Reads the current save via `emulatorService.getCurrentSave()`, calls `uploadSave(userId, data)`, and on success stamps `lastSaveSyncTime = Date.now()`. Sets `isSyncingSave = true` for the duration; resets to `false` in both success and error paths.
+96. **Auto-sync timestamp**: `PlayRoom.scheduleSaveUpload` now chains `.then(() => setLastSaveSyncTime(Date.now()))` after a successful debounced upload, so both upload paths keep `lastSaveSyncTime` current.
+97. **`SyncStatus.tsx`** (new at `src/components/PlayRoom/SyncStatus.tsx`): Self-contained component that gates on `useAuthStore.user` — returns `null` for offline/unauthenticated users. Shows a formatted last-synced label and a `☁ SYNC` icon button. Button disables and animates (CSS `rotate` keyframe on the `↻` character) while `isSyncingSave` is true. Date formatting uses native `Intl.DateTimeFormat` with relative bucketing ("Just now" / "N mins ago" / "Today at…" / "Yesterday at…" / absolute date).
+98. **`PlayRoom.tsx` integration**: Emulator card header refactored into `.play-room__emu-header` (flex row, `justify-content: space-between`) holding the "EMULATOR" title and `<SyncStatus />` side-by-side. Import path: `../PlayRoom/SyncStatus`.
 
 ---
 

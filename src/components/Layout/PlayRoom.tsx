@@ -5,6 +5,7 @@ import { emulatorService } from '../../services/emulatorService';
 import { useEmulatorStore } from '../../store/emulatorStore';
 import { useAuthStore } from '../../store/authStore';
 import { downloadSave, uploadSave } from '../../services/syncService';
+import { SyncStatus } from '../PlayRoom/SyncStatus';
 
 export function PlayRoom() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -37,9 +38,11 @@ export function PlayRoom() {
     saveUploadTimer.current = setTimeout(() => {
       const data = emulatorService.getCurrentSave();
       if (data) {
-        uploadSave(userId, data).catch((err) =>
-          console.error('[PlayRoom] save upload failed:', err)
-        );
+        uploadSave(userId, data)
+          .then(() => {
+            useEmulatorStore.getState().setLastSaveSyncTime(Date.now());
+          })
+          .catch((err) => console.error('[PlayRoom] save upload failed:', err));
       }
     }, 5000); // 5-second debounce
   }, []);
@@ -140,7 +143,10 @@ export function PlayRoom() {
   return (
     <div className="play-room">
       <div className="play-room__emulator-wrap card pixel-border">
-        <h2 className="play-room__section-title glow-text--purple">EMULATOR</h2>
+        <div className="play-room__emu-header">
+          <h2 className="play-room__section-title glow-text--purple">EMULATOR</h2>
+          <SyncStatus />
+        </div>
         <hr className="pixel-divider" />
 
         <div
@@ -218,6 +224,13 @@ export function PlayRoom() {
           display: flex;
           flex-direction: column;
           gap: var(--space-3);
+        }
+
+        .play-room__emu-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: var(--space-2);
         }
 
         .play-room__section-title {

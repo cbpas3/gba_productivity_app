@@ -1,5 +1,8 @@
 import { create } from 'zustand';
 import type { EmulatorState, EmulatorStatus } from '../types/emulator';
+import { emulatorService } from '../services/emulatorService';
+import { uploadSave } from '../services/syncService';
+import { useAuthStore } from './authStore';
 
 interface EmulatorStoreState extends EmulatorState {
   setStatus: (status: EmulatorStatus) => void;
@@ -10,6 +13,10 @@ interface EmulatorStoreState extends EmulatorState {
   toggleFastForward: () => void;
   isFullscreen: boolean;
   setIsFullscreen: (isFs: boolean) => void;
+  lastSaveSyncTime: number | null;
+  isSyncingSave: boolean;
+  setLastSaveSyncTime: (ts: number) => void;
+  forceSyncSave: () => Promise<void>;
 }
 
 const initialState: EmulatorState = {
@@ -45,4 +52,24 @@ export const useEmulatorStore = create<EmulatorStoreState>()((set) => ({
 
   isFullscreen: false,
   setIsFullscreen: (isFs) => set({ isFullscreen: isFs }),
+
+  lastSaveSyncTime: null,
+  isSyncingSave: false,
+  setLastSaveSyncTime: (ts) => set({ lastSaveSyncTime: ts }),
+
+  forceSyncSave: async () => {
+    const userId = useAuthStore.getState().user?.id;
+    if (!userId) return;
+
+    set({ isSyncingSave: true });
+    try {
+      const data = emulatorService.getCurrentSave();
+      if (!data) throw new Error('No save data available');
+      await uploadSave(userId, data);
+      set({ lastSaveSyncTime: Date.now(), isSyncingSave: false });
+    } catch (err) {
+      console.error('[EmulatorStore] forceSyncSave failed:', err);
+      set({ isSyncingSave: false });
+    }
+  },
 }));

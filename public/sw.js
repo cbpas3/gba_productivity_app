@@ -1,7 +1,7 @@
 /// Service Worker for GBA Productivity Quest PWA
 /// Caches the app shell and WASM assets for offline/installed use.
 
-const CACHE_NAME = 'gba-quest-v1';
+const CACHE_NAME = 'gba-quest-v2';
 
 // Populated at build time or matched at runtime.
 // We cache everything on first fetch (runtime caching strategy).
