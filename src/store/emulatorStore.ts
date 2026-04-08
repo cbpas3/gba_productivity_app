@@ -15,7 +15,9 @@ interface EmulatorStoreState extends EmulatorState {
   setIsFullscreen: (isFs: boolean) => void;
   lastSaveSyncTime: number | null;
   isSyncingSave: boolean;
+  lastSyncStatus: 'success' | 'error' | null;
   setLastSaveSyncTime: (ts: number) => void;
+  setSyncStatus: (s: 'success' | 'error' | null) => void;
   forceSyncSave: () => Promise<void>;
 }
 
@@ -55,7 +57,9 @@ export const useEmulatorStore = create<EmulatorStoreState>()((set) => ({
 
   lastSaveSyncTime: null,
   isSyncingSave: false,
+  lastSyncStatus: null,
   setLastSaveSyncTime: (ts) => set({ lastSaveSyncTime: ts }),
+  setSyncStatus: (s) => set({ lastSyncStatus: s }),
 
   forceSyncSave: async () => {
     const userId = useAuthStore.getState().user?.id;
@@ -77,10 +81,10 @@ export const useEmulatorStore = create<EmulatorStoreState>()((set) => ({
         emulatorService.stageSaveForNextLoad(data);
       }
 
-      set({ lastSaveSyncTime: Date.now(), isSyncingSave: false });
+      set({ lastSaveSyncTime: Date.now(), isSyncingSave: false, lastSyncStatus: 'success' });
     } catch (err) {
       console.error('[EmulatorStore] forceSyncSave failed:', err);
-      set({ isSyncingSave: false });
+      set({ isSyncingSave: false, lastSyncStatus: 'error' });
     }
   },
 }));

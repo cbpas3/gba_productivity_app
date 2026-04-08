@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { useEmulatorStore } from '../../store/emulatorStore';
 import { useAuthStore } from '../../store/authStore';
 
@@ -40,7 +41,18 @@ export function SyncStatus() {
   const user = useAuthStore((s) => s.user);
   const lastSaveSyncTime = useEmulatorStore((s) => s.lastSaveSyncTime);
   const isSyncingSave = useEmulatorStore((s) => s.isSyncingSave);
+  const lastSyncStatus = useEmulatorStore((s) => s.lastSyncStatus);
+  const setSyncStatus = useEmulatorStore((s) => s.setSyncStatus);
   const forceSyncSave = useEmulatorStore((s) => s.forceSyncSave);
+
+  // Clear the status indicator after 3 seconds.
+  const clearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!lastSyncStatus) return;
+    if (clearTimer.current) clearTimeout(clearTimer.current);
+    clearTimer.current = setTimeout(() => setSyncStatus(null), 3000);
+    return () => { if (clearTimer.current) clearTimeout(clearTimer.current); };
+  }, [lastSyncStatus, setSyncStatus]);
 
   if (!user) return null;
 
@@ -50,6 +62,11 @@ export function SyncStatus() {
 
   return (
     <div className="sync-status">
+      {lastSyncStatus && (
+        <span className={`sync-status__toast sync-status__toast--${lastSyncStatus}`}>
+          {lastSyncStatus === 'success' ? '✓ Saved to cloud' : '✗ Upload failed'}
+        </span>
+      )}
       <span className="sync-status__label">{label}</span>
       <button
         className={`btn sync-status__btn ${isSyncingSave ? 'sync-status__btn--busy' : ''}`}
@@ -62,7 +79,7 @@ export function SyncStatus() {
           {isSyncingSave ? '↻' : '☁'}
         </span>
         <span className="sync-status__btn-text">
-          {isSyncingSave ? 'SYNCING…' : 'SYNC'}
+          {isSyncingSave ? 'LOADING…' : 'PULL SAVE'}
         </span>
       </button>
 
@@ -73,6 +90,26 @@ export function SyncStatus() {
           gap: var(--space-2);
           width: 100%;
           justify-content: flex-end;
+        }
+
+        .sync-status__toast {
+          font-family: var(--font-pixel);
+          font-size: 0.38rem;
+          letter-spacing: 0.05em;
+          animation: sync-toast-fade 3s ease-out forwards;
+        }
+
+        .sync-status__toast--success {
+          color: var(--color-accent-green, #34d399);
+        }
+
+        .sync-status__toast--error {
+          color: var(--color-accent-red, #f87171);
+        }
+
+        @keyframes sync-toast-fade {
+          0%, 60%  { opacity: 1; }
+          100%     { opacity: 0; }
         }
 
         .sync-status__label {

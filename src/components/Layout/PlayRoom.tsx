@@ -40,8 +40,15 @@ export function PlayRoom() {
     const data = emulatorService.getCurrentSave();
     if (!data) return;
     uploadSave(userId, data)
-      .then(() => { useEmulatorStore.getState().setLastSaveSyncTime(Date.now()); })
-      .catch((err) => console.error('[PlayRoom] save upload failed:', err));
+      .then(() => {
+        const store = useEmulatorStore.getState();
+        store.setLastSaveSyncTime(Date.now());
+        store.setSyncStatus('success');
+      })
+      .catch((err) => {
+        console.error('[PlayRoom] save upload failed:', err);
+        useEmulatorStore.getState().setSyncStatus('error');
+      });
   }, []);
 
   const scheduleSaveUpload = useCallback(() => {
