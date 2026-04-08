@@ -367,6 +367,18 @@ class EmulatorServiceImpl implements IEmulatorService {
       console.warn("[EmulatorService] step 12: FSSync failed", e);
     }
 
+    // 13. Re-register the save callback — loadGame() clears core callbacks,
+    //     so without this step in-game saves after a writeSaveAndReload would
+    //     never trigger the cloud upload debounce.
+    if (this.saveCallback !== null) {
+      try {
+        this.module!.addCoreCallbacks({ saveDataUpdatedCallback: this.saveCallback });
+        console.log("[EmulatorService] step 13: save callback re-registered OK");
+      } catch (e) {
+        console.warn("[EmulatorService] step 13: addCoreCallbacks failed", e);
+      }
+    }
+
     console.log("[EmulatorService] writeSaveAndReload: COMPLETE");
     this.setStatus("running");
   }
