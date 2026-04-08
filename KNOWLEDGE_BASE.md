@@ -1,6 +1,7 @@
 # Game Productivity App — Knowledge Base
 
-> **Purpose**: Complete project context for LLM handoff. Covers architecture, Gen III save format, active bugs, and session history.
+> **Purpose**: Complete project context for LLM handoff. Covers architecture, Gen III save format, Supabase cloud sync, active bugs, and session history.
+> **Last updated**: Session 15 (Cloud Sync + Auth)
 
 ---
 
@@ -8,9 +9,10 @@
 
 A **Vite + React + TypeScript** progressive web app (PWA) that embeds the mGBA Game Boy Advance emulator (via WASM) and grants real in-game rewards when the user completes productivity tasks. Installable on iOS via Safari "Add to Home Screen" and on Android/desktop via browser install prompt.
 
-- **Stack**: Vite 5, React 18, TypeScript 5.9, Zustand 4, vitest 2
+- **Stack**: Vite 5, React 18, TypeScript 5.9, Zustand 4, vitest 2, `@supabase/supabase-js`
 - **Emulator**: `@thenick775/mgba-wasm` ^2.4.1 — Emscripten-compiled mGBA with an IndexedDB-backed virtual filesystem (VFS)
 - **PWA**: Service worker (`public/sw.js`) + web app manifest (`public/manifest.webmanifest`) for offline caching and installability
+- **Cloud sync**: Supabase (Postgres + Auth + Storage). Configured via `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` in `.env.local`. App runs fully offline when env vars are absent.
 - **Run dev**: `npm run dev` (from `/Users/cbpas/Projects/gba_productivity_app`)
 - **Tests**: `npx vitest run` — 7 test files, 121 tests, all passing as of session 14
 - **Fonts**: Self-hosted (Press Start 2P + VT323 woff2 in `src/styles/fonts/`) — works fully offline
@@ -21,14 +23,23 @@ A **Vite + React + TypeScript** progressive web app (PWA) that embeds the mGBA G
 
 ```
 src/
-  App.tsx                      # Root component, bootstraps services, wraps in ErrorBoundary
+  App.tsx                      # Root component: bootstraps services, auth init, cloud hydration on sign-in
   main.tsx
   components/
+    Auth/
+      AccountModal.tsx         # Sign-in / sign-up / sign-out modal; shows sync status when logged in
+      index.ts
     ErrorBoundary.tsx           # React error boundary — catches render errors, shows recovery UI
     EmulatorView/              # GBA canvas + ROM/save loader UI (with file size validation)
-    Layout/                    # AppLayout shell (with emulator init retry)
+    Layout/
+      AppLayout.tsx            # Shell: Header + NavBar + tab views (tasks/play) + modals
+      Header.tsx               # Title, emulator status dot, game name, desktop BOARD button
+      NavBar.tsx               # Tab bar (Tasks / Play / Account); fixed bottom on mobile, sticky top on desktop
+      PlayRoom.tsx             # Emulator panel + RewardDisplay; handles cloud .sav upload/download
+      TaskDashboard.tsx        # RewardPoolBar + Quest Log (TaskForm + TaskList)
     RewardPanel/               # Displays pending rewards + "CLAIM REWARDS" button
-    TaskManager/               # TaskList.tsx + TaskItem.tsx
+    TaskManager/               # TaskList.tsx + TaskItem.tsx + TaskBoardModal + BulkImportModal
+    TutorialModal.tsx          # First-time onboarding overlay
   hooks/
     useKeyboardInput.ts        # Global GBA keyboard passthrough
     useRewards.ts              # Subscribes to rewards:claimed events
@@ -50,11 +61,16 @@ src/
     pokemonCrypto.ts           # PokemonCryptoService class (delegates to lib/gen3)
     rewardBridge.ts            # eventBus listener: rewards:claim → SaveFileService.applyBatchRewards → rewards:claimed
     saveFileService.ts         # Orchestrates read→parse→modify→write→reload pipeline (batch + single)
+    supabaseClient.ts          # Supabase singleton + isSupabaseConfigured flag
+    syncService.ts             # All Supabase data-access: tasks, profile (pending rewards), .sav storage
+    syncBootstrap.ts           # hydrateFromCloud(userId): pulls tasks + pending rewards from cloud on sign-in
   store/
+    authStore.ts               # Zustand auth store: user, session, initialize(), signIn(), signUp(), signOut()
     eventBus.ts                # Typed event bus (EventMap)
-    taskStore.ts               # Zustand tasks store (persisted as 'gba-tasks'), pools rewards on completion
-    rewardStore.ts             # Zustand reward queue/history (persisted as 'gba-rewards'), claimAll(), isClaiming
-    emulatorStore.ts           # Zustand emulator status
+    emulatorStore.ts           # Zustand emulator status + isFastForward + isFullscreen
+    rewardStore.ts             # Zustand reward queue/history (persisted as 'gba-rewards'), claimAll(), isClaiming, hydratePendingRewards()
+    taskStore.ts               # Zustand tasks store (persisted as 'gba-tasks'), addTask/completeTask/deleteTask/bulkAddTasks/hydrateTasks()
+    uiStore.ts                 # Zustand UI prefs (persisted as 'gba-ui-prefs'): activeTab, modals, alignment, account panel
   types/
     emulator.ts                # IEmulatorService interface, GbaButton, EmulatorStatus
     events.ts                  # EventMap interface
@@ -64,6 +80,8 @@ src/
     task.ts                    # Task, TaskPriority, TaskStatus
   utils/
     crossOriginCheck.ts        # assertCrossOriginIsolated (needed for SharedArrayBuffer/WASM)
+supabase/
+  schema.sql                   # Full Supabase schema: tasks table, profiles table, saves storage bucket + RLS
 public/
   manifest.webmanifest         # PWA manifest (name: "Game Productivity App", icons, display: standalone)
   sw.js                        # Service worker: precache app shell, cache-first assets, network-first navigation
@@ -383,9 +401,13 @@ Thin adapter class that implements `IPokemonCryptoService`, delegating to `lib/g
 ### `taskStore` (localStorage key: `'gba-tasks'`)
 ```ts
 tasks: Task[]
-addTask(title, description, priority)  // emits task:created
-completeTask(id)                        // emits task:completed, pools reward via rewardStore.addPending()
-deleteTask(id)                          // emits task:deleted
+addTask(title, description, priority, recurrence?)  // emits task:created; pushes to Supabase if logged in
+bulkAddTasks(rawTasks)                              // validates + upserts batch; pushes to Supabase if logged in
+completeTask(id)                                    // emits task:completed, pools reward; pushes to Supabase
+deleteTask(id)                                      // emits task:deleted; deletes from Supabase
+updateTaskPriority(id, newPriority)                 // pushes updated task to Supabase
+resetRecurringTasks()                               // resets daily/weekly tasks; pushes reset tasks to Supabase
+hydrateTasks(tasks)                                 // replace local list with cloud data (called by syncBootstrap)
 ```
 
 ### `rewardStore` (localStorage key: `'gba-rewards'`)
@@ -393,13 +415,46 @@ deleteTask(id)                          // emits task:deleted
 pendingRewards: Reward[]
 rewardHistory: RewardHistoryEntry[]   // capped at 100 entries
 isClaiming: boolean                    // true while batch claim is in progress
-addPending(reward)                     // called by taskStore on task completion
+addPending(reward)                     // called by taskStore; syncs pending pool to Supabase profile
 claimAll()                             // emits 'rewards:claim' with all pending, sets isClaiming=true
-markBatchApplied(rewards, success)     // moves batch from pending → history, resets isClaiming
+markBatchApplied(rewards, success)     // moves batch from pending → history; clears pending in Supabase profile
 clearHistory()
+hydratePendingRewards(rewards)         // replace pending rewards with cloud data (called by syncBootstrap)
 ```
 
-On rehydrate (page load), stale `pendingRewards` are cleared — any reward pending before a refresh is unrecoverable.
+On rehydrate (page load), stale `pendingRewards` are cleared locally — but cloud profile may still hold them. `hydrateFromCloud` restores pending rewards from `profiles.pending_exp` after sign-in.
+
+### `authStore` (not persisted — Supabase session is auto-restored from cookie/localStorage)
+```ts
+user: User | null
+session: Session | null
+isLoading: boolean
+initialize()        // restores session + subscribes to auth changes; called once in App.tsx
+signIn(email, pw)   // returns error string | null
+signUp(email, pw)   // returns error string | null
+signOut()           // clears user/session
+_setSession(s)      // internal setter used by auth listener
+```
+
+### `uiStore` (localStorage key: `'gba-ui-prefs'`)
+```ts
+hasSeenTutorial: boolean
+mobileControlAlignment: 'default' | 'left' | 'right'
+isTaskBoardOpen: boolean
+isBulkImportOpen: boolean
+activeTab: 'tasks' | 'play'
+isAccountOpen: boolean
+```
+
+### `emulatorStore` (not persisted)
+```ts
+status: EmulatorStatus
+romLoaded: boolean
+gameName: string | null
+errorMessage: string | null
+isFastForward: boolean
+isFullscreen: boolean
+```
 
 ### `eventBus`
 Typed, singleton event bus. Events:
@@ -409,6 +464,53 @@ Typed, singleton event bus. Events:
 - `rewards:claim` → triggers batch save modification pipeline (from `rewardStore.claimAll()`)
 - `rewards:claimed` → carries `{ rewards, success, error? }` (from `rewardBridge`)
 - `emulator:status` / `emulator:save-modified`
+
+---
+
+## 9a. Cloud Sync Architecture (Session 15)
+
+Supabase is the cloud backend. The app works fully offline when `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` are not set — `isSupabaseConfigured` gates every network call.
+
+### Supabase Tables & Storage
+
+| Resource | Purpose |
+|---|---|
+| `public.tasks` | Per-user task rows (upserted by id, RLS: owner only) |
+| `public.profiles` | One row per user: `pending_exp` (Reward[] JSON) + `settings_json` |
+| `storage.saves` bucket | One file per user at `{userId}/game.sav` (private, 256 KB limit) |
+
+See `supabase/schema.sql` for full DDL + RLS policies. A Postgres trigger `on_auth_user_created` auto-creates a `profiles` row on sign-up.
+
+### Auth Flow
+```
+App.tsx mounts
+  → useAuthStore.initialize()         restores existing Supabase session from cookie
+  → if user exists: hydrateFromCloud(userId)
+  → supabase.auth.onAuthStateChange   listens for future SIGNED_IN events
+      → on SIGNED_IN: hydrateFromCloud(userId)
+
+AccountModal → signIn / signUp / signOut via useAuthStore
+```
+
+### Task Sync
+Every mutating action in `taskStore` (add, complete, delete, priority update, bulk add, recurring reset) calls the appropriate `syncService` function immediately after updating local state. `fetchTasks` on hydration replaces local state (cloud wins).
+
+### Pending Reward Sync
+`rewardStore.addPending` pushes the full `pendingRewards` array to `profiles.pending_exp` after every addition. `markBatchApplied` clears it to `[]`. `syncBootstrap.hydrateFromCloud` restores pending rewards from the profile row after sign-in.
+
+### .sav File Sync (in `PlayRoom.tsx`)
+
+| Direction | Trigger | Detail |
+|---|---|---|
+| **Upload** | mGBA `saveDataUpdatedCallback` fires after in-game save | 5-second debounce → `uploadSave(userId, Uint8Array)` → `saves/{userId}/game.sav` |
+| **Download** | Emulator init | `downloadSave(userId)` → `emulatorService.stageSaveForNextLoad(data)` — injected automatically on next ROM load |
+
+`uploadSave` copies the WASM-backed `Uint8Array` into a plain `ArrayBuffer` before creating a `Blob` (WASM may use `SharedArrayBuffer` which `Blob` rejects).
+
+### NavBar Account Button
+- Only rendered when `isSupabaseConfigured === true`
+- Shows `🔒 SYNCED` (green) when logged in, `👤 SIGN IN` otherwise
+- Opens `AccountModal` via `uiStore.isAccountOpen`
 
 ---
 
@@ -671,6 +773,23 @@ Tests use synthetic save buffers with R/S-style offsets (game code 0). `detectGa
 77. **Same fix in `GbaControls.tsx`**: `@media (max-width: 768px)` → `@media (pointer: coarse)` for all mobile-specific layout styles (alignment toggle, body layout, center cluster absolute positioning).
 78. **Rotate hint overlay** (`AppLayout.tsx`): Added `isTouchDevice` ref (`window.matchMedia('(pointer: coarse)').matches`) and `isPortrait` state from `window.matchMedia('(orientation: portrait)')` with a `change` listener. When `isFullscreen && isTouchDevice.current && isPortrait`, a non-blocking overlay with a spinning phone icon and "ROTATE FOR BEST EXPERIENCE" text is shown using `pointer-events: none` so it never interferes with touch input. Since iOS cannot be programmatically rotated, this politely prompts the user to tilt the phone.
 
+### Session 15: Cloud Sync + Auth
+79. **Supabase integration**: Added `@supabase/supabase-js`. Created `supabaseClient.ts` with a singleton client and `isSupabaseConfigured` flag — app behaves identically offline when env vars are absent.
+80. **`supabase/schema.sql`**: Full DDL for `tasks` table (bigint ms timestamps, enum CHECK constraints, RLS), `profiles` table (`pending_exp` jsonb, `settings_json` jsonb, auto-create trigger), and `saves` storage bucket (private, 256 KB limit, 4 RLS policies for SELECT/INSERT/UPDATE/DELETE keyed by `{userId}/` folder prefix).
+81. **`syncService.ts`**: Thin Supabase data-access layer with `pushTask`, `pushTaskBatch`, `deleteTask`, `fetchTasks` (tasks table), `pushProfile`, `fetchProfile` (profiles table), `uploadSave`, `downloadSave` (saves storage bucket). All functions are no-ops when `!isSupabaseConfigured`.
+82. **`authStore.ts`**: New Zustand store (not persisted). Holds `user`, `session`, `isLoading`. `initialize()` restores the session on startup and subscribes to auth state changes. `signIn` / `signUp` / `signOut` delegate to Supabase Auth.
+83. **`syncBootstrap.ts`**: `hydrateFromCloud(userId)` fetches tasks and profile in parallel, replacing local task list (cloud wins when tasks exist) and restoring pending rewards from `profiles.pending_exp`.
+84. **`App.tsx` updated**: Calls `useAuthStore.initialize()` on mount, hydrates from cloud for any existing session, and registers an `onAuthStateChange` listener to re-hydrate on future sign-ins.
+85. **`taskStore.ts` updated**: All 6 mutating actions now call `syncService` after updating local state. Added `hydrateTasks(tasks)` action for cloud hydration.
+86. **`rewardStore.ts` updated**: `addPending` syncs full pending pool to `profiles.pending_exp`. `markBatchApplied` clears it. Added `hydratePendingRewards(rewards)` for cloud hydration.
+87. **`AccountModal.tsx`** (new component at `src/components/Auth/`): Email/password sign-in and sign-up form. Shows signed-in state with user email + "Cloud sync is active" notice + SIGN OUT button. Shows unconfigured notice when Supabase env vars are missing.
+88. **`NavBar.tsx` updated**: New Account tab button (only shown when `isSupabaseConfigured`). Shows `🔒 SYNCED` (green) when logged in, `👤 SIGN IN` otherwise. Pushes to right via `margin-left: auto`. Tapping opens `AccountModal`.
+89. **`uiStore.ts` updated**: Added `isAccountOpen` / `setIsAccountOpen` fields. Added `activeTab: 'tasks' | 'play'` for tab switching.
+90. **`AppLayout.tsx` refactored**: Now a thin shell — Header + NavBar + tab views (`TaskDashboard` / `PlayRoom` toggled via `display: none`) + all modals. Both views always mounted to preserve emulator canvas state across tab switches. Mounts `<AccountModal />`.
+91. **`PlayRoom.tsx`** (new/extracted): Contains all emulator lifecycle logic (init, fast-forward, fullscreen, rotate hint). Registers `setSaveCallback(scheduleSaveUpload)` — a 5-second debounced `uploadSave` call. On init, downloads cloud `.sav` and stages it via `emulatorService.stageSaveForNextLoad`.
+92. **`TaskDashboard.tsx`** (new): Renders `RewardPoolBar` (EXP% fill bar, `🎮 Ready to Play?` button) + Quest Log section (TaskForm + TaskList).
+93. **`Header.tsx` updated**: Displays `gameName` from `emulatorStore`. Desktop-only `📋 BOARD` button (visible at `≥ 1024px`) opens `TaskBoardModal`.
+
 ---
 
 ## 14. Next Steps (Suggested)
@@ -685,3 +804,10 @@ Tests use synthetic save buffers with R/S-style offsets (game code 0). `detectGa
 
 5. **`vercel.json` COOP/COEP headers** — for production deployment, add `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp` headers via a `vercel.json` file (currently only configured in `vite.config.ts` for dev).
 
+6. **Cloud sync conflict resolution** — currently "cloud always wins" on initial hydration (if cloud has tasks). A merge strategy (e.g. union by id, latest `created_at` wins) would be safer for users who use multiple devices or add tasks while offline.
+
+7. **`settings_json` sync** — `profiles.settings_json` is written to the DB but never read back. Wiring `syncBootstrap` to hydrate `uiStore` from this field would sync preferences (e.g. `mobileControlAlignment`) across devices.
+
+8. **Email confirmation flow** — after sign-up, the user sees a "Check your email to confirm" message but has no in-app feedback when they've confirmed and can now sign in. A polling or deep-link flow would improve UX.
+
+9. **`.sav` download on ROM load** — currently the cloud save is staged on emulator init (before the user picks a ROM). If the user signs in *after* loading a ROM the cloud save won't be applied until they reload. Triggering a re-stage on `SIGNED_IN` events would fix this.
