@@ -1,10 +1,14 @@
 import { useUiStore } from '../../store/uiStore';
 import { useRewardStore } from '../../store/rewardStore';
+import { useAuthStore } from '../../store/authStore';
+import { isSupabaseConfigured } from '../../services/supabaseClient';
 
 export function NavBar() {
   const activeTab = useUiStore((s) => s.activeTab);
   const setActiveTab = useUiStore((s) => s.setActiveTab);
+  const setIsAccountOpen = useUiStore((s) => s.setIsAccountOpen);
   const pendingCount = useRewardStore((s) => s.pendingRewards.length);
+  const user = useAuthStore((s) => s.user);
 
   return (
     <nav className="nav-bar" role="navigation" aria-label="Main navigation">
@@ -31,6 +35,19 @@ export function NavBar() {
             </span>
           )}
         </button>
+
+        {/* Account button — only visible when Supabase is configured */}
+        {isSupabaseConfigured && (
+          <button
+            className={`nav-bar__tab nav-bar__tab--account ${user ? 'nav-bar__tab--synced' : ''}`}
+            onClick={() => setIsAccountOpen(true)}
+            aria-label={user ? `Account: ${user.email}` : 'Sign in for cloud sync'}
+            title={user ? user.email : 'Sign in / Sign up'}
+          >
+            <span className="nav-bar__tab-icon">{user ? '🔒' : '👤'}</span>
+            <span className="nav-bar__tab-label">{user ? 'SYNCED' : 'SIGN IN'}</span>
+          </button>
+        )}
       </div>
 
       <style>{`
@@ -127,6 +144,21 @@ export function NavBar() {
         @keyframes badge-pulse {
           0%, 100% { box-shadow: 0 0 4px rgba(255, 214, 0, 0.4); }
           50%       { box-shadow: 0 0 10px rgba(255, 214, 0, 0.8); }
+        }
+
+        /* Account button pushed to the right on desktop */
+        .nav-bar__tab--account {
+          margin-left: auto;
+          font-size: 0.42rem;
+        }
+
+        .nav-bar__tab--synced {
+          color: var(--color-accent-green);
+          border-color: rgba(105, 255, 71, 0.35);
+        }
+
+        .nav-bar__tab--synced:hover {
+          border-color: var(--color-accent-green);
         }
 
         /* ── Mobile: fixed bottom navigation bar ── */

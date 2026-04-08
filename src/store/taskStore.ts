@@ -4,6 +4,18 @@ import type { Task, TaskPriority, TaskRecurrence } from '../types/task';
 import type { Reward } from '../types/reward';
 import { eventBus } from './eventBus';
 import { useRewardStore } from './rewardStore';
+import * as syncService from '../services/syncService';
+
+// Lazy reference to authStore to avoid circular imports at module init time.
+function getUserId(): string | null {
+  // Dynamic require pattern — resolved at call time, never at module load.
+  return (
+    (
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require('./authStore') as { useAuthStore: { getState: () => { user: { id: string } | null } } }
+    ).useAuthStore.getState().user?.id ?? null
+  );
+}
 
 const EXP_PERCENT: Record<TaskPriority, number> = {
   low:      10,
@@ -28,6 +40,8 @@ interface TaskState {
   deleteTask: (id: string) => void;
   updateTaskPriority: (id: string, newPriority: TaskPriority) => void;
   resetRecurringTasks: () => void;
+  /** Replace local task list with data pulled from the cloud. */
+  hydrateTasks: (tasks: Task[]) => void;
 }
 
 export const useTaskStore = create<TaskState>()(
@@ -49,6 +63,9 @@ export const useTaskStore = create<TaskState>()(
         };
         set((state) => ({ tasks: [...state.tasks, task] }));
         eventBus.emit('task:created', { task });
+
+        const uid = getUserId();
+        if (uid) syncService.pushTask(uid, task).catch(console.error);
       },
 
       bulkAddTasks: (rawTasks) => {
@@ -61,8 +78,6 @@ export const useTaskStore = create<TaskState>()(
           id: crypto.randomUUID(),
           title: rt.title || 'Untitled imported task',
           description: rt.description || '',
-          // Validate enum fields — reject unknown strings rather than passing them
-          // through, since an invalid priority produces undefined in EXP_PERCENT.
           priority: VALID_PRIORITIES.has(rt.priority as TaskPriority)
             ? (rt.priority as TaskPriority)
             : 'low',
@@ -76,6 +91,9 @@ export const useTaskStore = create<TaskState>()(
         }));
 
         set((state) => ({ tasks: [...state.tasks, ...resolvedTasks] }));
+
+        const uid = getUserId();
+        if (uid) syncService.pushTaskBatch(uid, resolvedTasks).catch(console.error);
       },
 
       completeTask: (id) => {
@@ -96,19 +114,34 @@ export const useTaskStore = create<TaskState>()(
         }));
 
         eventBus.emit('task:completed', { task: completedTask, reward });
-        // Pool the reward — no game reset until user clicks "CLAIM REWARDS"
         useRewardStore.getState().addPending(reward);
+
+        const uid = getUserId();
+        if (uid) syncService.pushTask(uid, completedTask).catch(console.error);
       },
 
       deleteTask: (id) => {
         set((state) => ({ tasks: state.tasks.filter((t) => t.id !== id) }));
         eventBus.emit('task:deleted', { taskId: id });
+
+        const uid = getUserId();
+        if (uid) syncService.deleteTask(uid, id).catch(console.error);
       },
 
       updateTaskPriority: (id, newPriority) => {
+        let updated: Task | undefined;
         set((state) => ({
-          tasks: state.tasks.map((t) => (t.id === id ? { ...t, priority: newPriority } : t)),
+          tasks: state.tasks.map((t) => {
+            if (t.id !== id) return t;
+            updated = { ...t, priority: newPriority };
+            return updated;
+          }),
         }));
+
+        if (updated) {
+          const uid = getUserId();
+          if (uid) syncService.pushTask(uid, updated).catch(console.error);
+        }
       },
 
       resetRecurringTasks: () => {
@@ -116,7 +149,6 @@ export const useTaskStore = create<TaskState>()(
         const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
         const dayOfWeek = now.getDay();
         const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-        // Use calendar arithmetic (not raw ms) so DST transitions don't skew the boundary.
         const thisMondayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysSinceMonday).getTime();
 
         let changed = false;
@@ -147,7 +179,17 @@ export const useTaskStore = create<TaskState>()(
 
         if (changed) {
           set({ tasks });
+          // Sync all reset tasks back to cloud.
+          const uid = getUserId();
+          if (uid) {
+            const resetTasks = tasks.filter((t) => t.status === 'pending' && t.recurrence !== 'none');
+            syncService.pushTaskBatch(uid, resetTasks).catch(console.error);
+          }
         }
+      },
+
+      hydrateTasks: (tasks) => {
+        set({ tasks });
       },
     }),
     {

@@ -41,6 +41,8 @@ class EmulatorServiceImpl implements IEmulatorService {
   private currentRomPath: string | null = null;
   private currentSavePath: string | null = null;
   private currentRomData: Uint8Array | null = null;
+  private saveCallback: (() => void) | null = null;
+  private stagedSaveData: Uint8Array | null = null;
 
   // IEmulatorService — initialize ---------------------------------------
 
@@ -131,6 +133,23 @@ class EmulatorServiceImpl implements IEmulatorService {
         "[EmulatorService] ROM loaded. savePath =",
         this.currentSavePath,
       );
+
+      // Inject a staged cloud save (if any) immediately after ROM load.
+      if (this.stagedSaveData !== null) {
+        try {
+          this.module!.FS.writeFile(this.currentSavePath, this.stagedSaveData);
+          this.module!.quickReload();
+          console.log("[EmulatorService] Staged save injected and reloaded.");
+        } catch (e) {
+          console.warn("[EmulatorService] Failed to inject staged save:", e);
+        }
+        this.stagedSaveData = null;
+      }
+
+      // Register the save-write callback so cloud upload triggers on every flush.
+      if (this.saveCallback !== null) {
+        this.module!.addCoreCallbacks({ saveDataUpdatedCallback: this.saveCallback });
+      }
 
       this.setStatus("running");
       return true;
@@ -450,6 +469,28 @@ class EmulatorServiceImpl implements IEmulatorService {
   /** Returns the current emulator status. */
   getStatus(): EmulatorStatus {
     return this.status;
+  }
+
+  // IEmulatorService — cloud save sync -----------------------------------
+
+  /**
+   * Register a callback that fires whenever mGBA flushes save data to the VFS.
+   * Re-registers with the live module immediately if a game is already loaded.
+   * Pass null to unregister.
+   */
+  setSaveCallback(cb: (() => void) | null): void {
+    this.saveCallback = cb;
+    if (this.module !== null) {
+      this.module.addCoreCallbacks({ saveDataUpdatedCallback: cb ?? undefined });
+    }
+  }
+
+  /**
+   * Stage save data to be injected into the VFS right after the next loadRom
+   * succeeds. The staged data is consumed (cleared) after injection.
+   */
+  stageSaveForNextLoad(data: Uint8Array): void {
+    this.stagedSaveData = data;
   }
 
   // Private helpers ------------------------------------------------------

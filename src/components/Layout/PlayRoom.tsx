@@ -3,6 +3,8 @@ import { EmulatorCanvas, GbaControls, RomLoader } from '../EmulatorView';
 import { RewardDisplay } from '../RewardPanel';
 import { emulatorService } from '../../services/emulatorService';
 import { useEmulatorStore } from '../../store/emulatorStore';
+import { useAuthStore } from '../../store/authStore';
+import { downloadSave, uploadSave } from '../../services/syncService';
 
 export function PlayRoom() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -24,27 +26,68 @@ export function PlayRoom() {
     () => typeof window !== 'undefined' && window.matchMedia('(orientation: portrait)').matches
   );
 
+  // Debounce timer for save uploads — avoids hammering the API on every tick.
+  const saveUploadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const scheduleSaveUpload = useCallback(() => {
+    const userId = useAuthStore.getState().user?.id;
+    if (!userId) return;
+
+    if (saveUploadTimer.current) clearTimeout(saveUploadTimer.current);
+    saveUploadTimer.current = setTimeout(() => {
+      const data = emulatorService.getCurrentSave();
+      if (data) {
+        uploadSave(userId, data).catch((err) =>
+          console.error('[PlayRoom] save upload failed:', err)
+        );
+      }
+    }, 5000); // 5-second debounce
+  }, []);
+
   const initEmulator = useCallback(() => {
     if (!canvasRef.current) return;
     setStatus('loading');
     emulatorService
       .initialize(canvasRef.current)
-      .then(() => {
+      .then(async () => {
         initialized.current = true;
         setStatus('idle');
         emulatorService.setFastForward(useEmulatorStore.getState().isFastForward);
+
+        // Register save-write callback for cloud upload.
+        emulatorService.setSaveCallback(scheduleSaveUpload);
+
+        // If the user is logged in, download their cloud save and stage it
+        // so it's auto-injected the moment they pick a ROM file.
+        const userId = useAuthStore.getState().user?.id;
+        if (userId) {
+          try {
+            const cloudSave = await downloadSave(userId);
+            if (cloudSave) {
+              emulatorService.stageSaveForNextLoad(cloudSave);
+              console.log('[PlayRoom] Cloud save staged for next ROM load.');
+            }
+          } catch (err) {
+            console.error('[PlayRoom] Cloud save download failed:', err);
+          }
+        }
       })
       .catch((err: unknown) => {
         initialized.current = false;
         const message = err instanceof Error ? err.message : String(err);
         setError(message);
       });
-  }, [setStatus, setError]);
+  }, [setStatus, setError, scheduleSaveUpload]);
 
   useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
     initEmulator();
+    return () => {
+      // Clear debounce timer and unregister callback on unmount.
+      if (saveUploadTimer.current) clearTimeout(saveUploadTimer.current);
+      emulatorService.setSaveCallback(null);
+    };
   }, [initEmulator]);
 
   useEffect(() => {

@@ -21,6 +21,18 @@ export interface IEmulatorService {
   toggleInput(enabled: boolean): void;
   setFastForward(enabled: boolean): void;
   getStatus(): EmulatorStatus;
+
+  /**
+   * Register a callback that fires whenever mGBA flushes the save chip to the
+   * VFS. Use this to trigger cloud save uploads. Pass null to unregister.
+   */
+  setSaveCallback(cb: (() => void) | null): void;
+
+  /**
+   * Stage raw save data to be injected immediately after the next loadRom call.
+   * Use this to restore a cloud save before the user picks a ROM file.
+   */
+  stageSaveForNextLoad(data: Uint8Array): void;
 }
 
 export type GbaButton =

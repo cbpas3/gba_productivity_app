@@ -5,6 +5,7 @@ import { TaskDashboard } from './TaskDashboard';
 import { PlayRoom } from './PlayRoom';
 import { TutorialModal } from '../TutorialModal';
 import { TaskBoardModal, BulkImportModal } from '../TaskManager';
+import { AccountModal } from '../Auth';
 import { useUiStore } from '../../store/uiStore';
 import { useTaskStore } from '../../store/taskStore';
 
@@ -77,6 +78,7 @@ export function AppLayout() {
       <TutorialModal />
       <TaskBoardModal />
       <BulkImportModal />
+      <AccountModal />
 
       <style>{`
         .app-layout {

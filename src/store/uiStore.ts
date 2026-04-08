@@ -15,6 +15,8 @@ interface UiState {
   setIsBulkImportOpen: (isOpen: boolean) => void;
   activeTab: ActiveTab;
   setActiveTab: (tab: ActiveTab) => void;
+  isAccountOpen: boolean;
+  setIsAccountOpen: (isOpen: boolean) => void;
 }
 
 export const useUiStore = create<UiState>()(
@@ -30,6 +32,8 @@ export const useUiStore = create<UiState>()(
       setIsBulkImportOpen: (isOpen) => set({ isBulkImportOpen: isOpen }),
       activeTab: 'tasks',
       setActiveTab: (tab) => set({ activeTab: tab }),
+      isAccountOpen: false,
+      setIsAccountOpen: (isOpen) => set({ isAccountOpen: isOpen }),
     }),
     {
       name: 'gba-ui-prefs',
