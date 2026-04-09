@@ -1,7 +1,7 @@
 # Game Productivity App — Knowledge Base
 
 > **Purpose**: Complete project context for LLM handoff. Covers architecture, Gen III save format, Supabase cloud sync, active bugs, and session history.
-> **Last updated**: Session 19 (remove auto-upload, explicit PUSH/PULL buttons)
+> **Last updated**: Session 20 (theme toggle, volume control, emulator toolbar polish)
 
 ---
 
@@ -34,8 +34,8 @@ src/
     Layout/
       AppLayout.tsx            # Shell: Header + NavBar + tab views (tasks/play) + modals
       Header.tsx               # Title, emulator status dot, game name, desktop BOARD button
-      NavBar.tsx               # Tab bar (Tasks / Play / Account); fixed bottom on mobile, sticky top on desktop
-      PlayRoom.tsx             # Emulator panel + RewardDisplay; handles cloud .sav upload/download
+      NavBar.tsx               # Tab bar (Tasks / Play / Theme toggle / Account); fixed bottom on mobile, sticky top on desktop
+      PlayRoom.tsx             # Emulator panel + RewardDisplay; volume slider, restart, fullscreen, fast-forward toolbar
       TaskDashboard.tsx        # RewardPoolBar + Quest Log (TaskForm + TaskList)
     PlayRoom/
       SyncStatus.tsx           # Manual sync button + last-synced label (only shown when logged in)
@@ -69,10 +69,10 @@ src/
   store/
     authStore.ts               # Zustand auth store: user, session, initialize(), signIn(), signUp(), signOut()
     eventBus.ts                # Typed event bus (EventMap)
-    emulatorStore.ts           # Zustand emulator status + isFastForward + isFullscreen
+    emulatorStore.ts           # Zustand emulator status + isFastForward + isFullscreen + volume + pushSave/pullSave/isSyncing
     rewardStore.ts             # Zustand reward queue/history (persisted as 'gba-rewards'), claimAll(), isClaiming, hydratePendingRewards()
     taskStore.ts               # Zustand tasks store (persisted as 'gba-tasks'), addTask/completeTask/deleteTask/bulkAddTasks/hydrateTasks()
-    uiStore.ts                 # Zustand UI prefs (persisted as 'gba-ui-prefs'): activeTab, modals, alignment, account panel
+    uiStore.ts                 # Zustand UI prefs (persisted as 'gba-ui-prefs'): activeTab, modals, alignment, account panel, theme
   types/
     emulator.ts                # IEmulatorService interface, GbaButton, EmulatorStatus
     events.ts                  # EventMap interface
@@ -449,6 +449,8 @@ isTaskBoardOpen: boolean
 isBulkImportOpen: boolean
 activeTab: 'tasks' | 'play'
 isAccountOpen: boolean
+theme: 'dark' | 'light'    // persisted; toggled by NavBar button
+toggleTheme()               // flips dark ↔ light
 ```
 
 ### `emulatorStore` (not persisted)
@@ -459,6 +461,8 @@ gameName: string | null
 errorMessage: string | null
 isFastForward: boolean
 isFullscreen: boolean
+volume: number              // 0–100; default 100; calls emulatorService.setVolume() on change
+setVolume(percent)          // mutates store + forwards to emulatorService immediately
 lastSaveSyncTime: number | null   // Unix ms timestamp of last successful push or pull
 isSyncing: boolean                // true while pushSave() or pullSave() is in flight
 lastSyncStatus: 'success' | 'error' | null  // set after each push/pull; cleared after 3s by SyncStatus
@@ -862,6 +866,16 @@ Tests use synthetic save buffers with R/S-style offsets (game code 0). `detectGa
 112. **`pullSave()` action** (`emulatorStore.ts`): Renamed/cleaned from old `forceSyncSave` — downloads cloud save, calls `writeSaveAndReload` or `stageSaveForNextLoad`. Sets `lastSaveSyncTime` and `lastSyncStatus` on completion.
 113. **Store simplified** (`emulatorStore.ts`): Removed `isAutoUploading`, `setIsAutoUploading`, `setLastSaveSyncTime`, `forceSyncSave`. Renamed `isSyncingSave` → `isSyncing`. Now only has `pushSave`, `pullSave`, `setSyncStatus`.
 114. **`SyncStatus.tsx` rewritten**: Two explicit buttons — `↑ PUSH` and `↓ PULL` — both disabled while `isSyncing`. Label shows `Synced: <time>` or "Synced: Never". `✓`/`✗` indicator appears for 3s after each operation.
+
+### Session 20: Theme Toggle, Volume Control, Emulator Toolbar Polish
+115. **Dark/light theme toggle** (`uiStore.ts`): Added `theme: 'dark' | 'light'` (default `'dark'`) and `toggleTheme()` to `UiState`. Both persisted in `'gba-ui-prefs'`. Exported `Theme` type.
+116. **NavBar theme button**: New `☀️ LIGHT` / `🌙 DARK` toggle button rendered between the Play tab and the Account button. Uses `nav-bar__tab--theme` class with `margin-left: auto` to push it (and Account) to the right on desktop. Account button's own `margin-left: auto` removed (it now sits adjacent to the theme button).
+117. **Volume control** (`emulatorStore.ts`): Added `volume: number` (default `100`) and `setVolume(percent)`. `setVolume` calls `emulatorService.setVolume(percent)` immediately then updates store state — no effect if module not yet initialised (service guards internally).
+118. **`emulatorService.setVolume(percent)`** (`emulatorService.ts`): New method clamps 0–100 and calls `this.module.setVolume(...)`. No-op when module is null.
+119. **`emulatorService.restart()`** (`emulatorService.ts`): New method (documented in Session 17 but now wired end-to-end). Disables `restoreAutoSaveStateOnLoad`, deletes `.ss` snapshot, calls `quickReload()`, re-enables setting. No-op when `status !== 'running'`.
+120. **`emulatorService.getStatus()`** (`emulatorService.ts`): New method — returns `this.status`. Used by `emulatorStore.pullSave()` to decide between `writeSaveAndReload` and `stageSaveForNextLoad`.
+121. **Volume slider in toolbar** (`PlayRoom.tsx`): New `<label class="emu-toolbar__volume">` containing a volume emoji icon (🔇/🔉/🔊 based on level) and a `<input type="range" min=0 max=100 step=5>` slider. `onChange` calls `setVolume`. Initial volume applied via `emulatorService.setVolume(volume)` inside `initialize().then()`.
+122. **`emulatorService.setVolume` called on init** (`PlayRoom.tsx`): `initEmulator` now calls `emulatorService.setVolume(useEmulatorStore.getState().volume)` alongside `setFastForward`, so persisted volume is applied to every fresh or retried module.
 
 ---
 
