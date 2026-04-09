@@ -41,7 +41,7 @@ export function TaskItem({ task }: TaskItemProps) {
           </span>
           {isRecurring && (
             <span className="badge badge--recurring">
-              {task.recurrence === 'daily' ? 'DAILY' : 'WEEKLY'}
+              {task.recurrence === 'daily' ? 'DAILY' : task.recurrence === 'weekly' ? 'WEEKLY' : '♾ REPEAT'}
             </span>
           )}
           <span className="task-item__status">
@@ -59,7 +59,7 @@ export function TaskItem({ task }: TaskItemProps) {
               ✓ DONE
             </button>
           )}
-          {isCompleted && isRecurring && (
+          {isCompleted && isRecurring && task.recurrence !== 'repeatable' && (
             <span className="task-item__reset-label">
               🔁 {task.recurrence === 'daily' ? 'Resets Tomorrow' : 'Resets Next Week'}
             </span>

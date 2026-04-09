@@ -66,7 +66,7 @@ export const useTaskStore = create<TaskState>()(
         if (!Array.isArray(rawTasks)) return;
 
         const VALID_PRIORITIES = new Set<TaskPriority>(['low', 'medium', 'high', 'critical']);
-        const VALID_RECURRENCES = new Set<TaskRecurrence>(['none', 'daily', 'weekly']);
+        const VALID_RECURRENCES = new Set<TaskRecurrence>(['none', 'daily', 'weekly', 'repeatable']);
 
         const resolvedTasks: Task[] = rawTasks.map((rt) => ({
           id: crypto.randomUUID(),
@@ -95,11 +95,32 @@ export const useTaskStore = create<TaskState>()(
         if (!task || task.status === 'completed') return;
 
         const reward = buildReward(task.priority);
+        const now = Date.now();
+
+        // Repeatable tasks: give reward then immediately reset to pending.
+        if (task.recurrence === 'repeatable') {
+          const resetTask: Task = {
+            ...task,
+            status: 'pending',
+            completedAt: undefined,
+            lastCompletedAt: now,
+            rewardClaimed: false,
+          };
+          set((state) => ({
+            tasks: state.tasks.map((t) => (t.id === id ? resetTask : t)),
+          }));
+          eventBus.emit('task:completed', { task: { ...task, status: 'completed', completedAt: now }, reward });
+          useRewardStore.getState().addPending(reward);
+          const uid = getUserId();
+          if (uid) syncService.pushTask(uid, resetTask).catch(console.error);
+          return;
+        }
+
         const completedTask: Task = {
           ...task,
           status: 'completed',
-          completedAt: Date.now(),
-          lastCompletedAt: Date.now(),
+          completedAt: now,
+          lastCompletedAt: now,
           rewardClaimed: true,
         };
 

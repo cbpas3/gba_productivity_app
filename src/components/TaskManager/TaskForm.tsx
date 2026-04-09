@@ -109,6 +109,7 @@ export function TaskForm({ onSubmitSuccess }: TaskFormProps = {}) {
           <option value="none">None (One-off)</option>
           <option value="daily">Daily Quest (🔁 Resets at midnight)</option>
           <option value="weekly">Weekly Quest (🔁 Resets Monday)</option>
+          <option value="repeatable">Repeatable (♾ Resets instantly)</option>
         </select>
       </div>
 

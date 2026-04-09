@@ -1,6 +1,6 @@
-export type TaskPriority = 'low' | 'medium' | 'high' | 'critical';
-export type TaskStatus = 'pending' | 'in-progress' | 'completed';
-export type TaskRecurrence = 'none' | 'daily' | 'weekly';
+export type TaskPriority = "low" | "medium" | "high" | "critical";
+export type TaskStatus = "pending" | "in-progress" | "completed";
+export type TaskRecurrence = "none" | "daily" | "weekly" | "repeatable";
 
 export interface Task {
   id: string;
