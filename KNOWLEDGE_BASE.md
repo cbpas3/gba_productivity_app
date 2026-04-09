@@ -1,7 +1,7 @@
 # Game Productivity App — Knowledge Base
 
 > **Purpose**: Complete project context for LLM handoff. Covers architecture, Gen III save format, Supabase cloud sync, active bugs, and session history.
-> **Last updated**: Session 20 (theme toggle, volume control, emulator toolbar polish)
+> **Last updated**: Session 21 (light theme professional redesign)
 
 ---
 
@@ -876,6 +876,15 @@ Tests use synthetic save buffers with R/S-style offsets (game code 0). `detectGa
 120. **`emulatorService.getStatus()`** (`emulatorService.ts`): New method — returns `this.status`. Used by `emulatorStore.pullSave()` to decide between `writeSaveAndReload` and `stageSaveForNextLoad`.
 121. **Volume slider in toolbar** (`PlayRoom.tsx`): New `<label class="emu-toolbar__volume">` containing a volume emoji icon (🔇/🔉/🔊 based on level) and a `<input type="range" min=0 max=100 step=5>` slider. `onChange` calls `setVolume`. Initial volume applied via `emulatorService.setVolume(volume)` inside `initialize().then()`.
 122. **`emulatorService.setVolume` called on init** (`PlayRoom.tsx`): `initEmulator` now calls `emulatorService.setVolume(useEmulatorStore.getState().volume)` alongside `setFastForward`, so persisted volume is applied to every fresh or retried module.
+
+### Session 21: Light Theme Professional Redesign
+123. **Full light-theme CSS variable overhaul** (`globals.css`): Colors migrated to a Slate/Zinc neutral palette — backgrounds `#F4F6F8`, cards `#FFFFFF`, surfaces `#F1F5F9`–`#E2E8F0`. Accent system shifted from Indigo-purple to Blue-600/700 (`#2563EB`/`#1D4ED8`) for an enterprise-grade, never-neon feel. Text tokens moved to Slate: primary `#0F172A` (Slate-900), secondary `#475569` (Slate-600), muted `#94A3B8` (Slate-400).
+124. **`--font-pixel` overridden in light mode** (`globals.css`): Inside `[data-theme="light"]`, `--font-pixel` is set to the system-sans stack. All section headings, nav tabs, and labels that use `var(--font-pixel)` automatically render in a clean professional typeface. The GBA game controller UI retains the pixel font via component-level inline styles.
+125. **Glow effects removed in light mode** (`globals.css`): `--glow-text-purple` and `--glow-text-cyan` set to `none`. All `.glow-text--*` utility classes scoped under `[data-theme="light"]` produce flat ink-coloured text with no blur or neon shadow.
+126. **Professional elevation shadow system** (`globals.css`): All `--shadow-*` variables in `[data-theme="light"]` replaced with pure Slate-based `box-shadow` values (no coloured outer glows). Uses a two-layer system (1–2 px tight contact shadow + 6–16 px ambient lift) matching modern SaaS elevation conventions.
+127. **Light-theme scoped block overrides** (`globals.css`): Added a `/* Light-theme targeted overrides */` section at end of file. Rules scoped to `[data-theme="light"]`: `h1–h4` (font-weight 700, letter-spacing −0.01em), `.card` (white bg + ink border + elevation shadow), `.pixel-border` (solid Slate-14% ring), `.glow-text--*` (flat colour, `text-shadow: none`), `.input:focus` (Blue-600 ring), `.pixel-divider` (10% Slate), `.btn--primary` (Blue-600 fill, white text), `.btn--secondary` (white bg, ink border), `.btn--ghost` (transparent, ink border hover → Slate tint).
+128. **Header light-mode override** (`Header.tsx`): `[data-theme="light"] .app-header` renders as a clean white bar with 1px Slate bottom border and two-layer elevation shadow. The neon horizontal accent line is hidden (`display: none`). Title overridden to font-weight 800, letter-spacing −0.02em, Slate-900. Tagline set to Slate-600 / 400 weight. Ornament elements hidden.
+129. **NavBar light-mode override** (`NavBar.tsx`): `[data-theme="light"] .nav-bar` uses white background, bottom border, no glow shadow. Active tab indicator switches from cyan neon to solid Blue-600 fill + underline. Hover state uses Slate-100 tint. Mobile bottom bar gets `backdrop-filter: blur(12px)` with 97% white background.
 
 ---
 

@@ -29,9 +29,9 @@ export function Header() {
           <button 
             className="btn btn--primary app-header__board-btn"
             onClick={() => setIsTaskBoardOpen(true)}
-            aria-label="Open Kanban Quest Board"
+            aria-label="Add a new quest"
           >
-            📋 BOARD
+            + ADD QUEST
           </button>
         </div>
 

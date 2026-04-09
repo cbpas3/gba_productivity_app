@@ -17,7 +17,12 @@ const REWARD_HINTS: Record<TaskPriority, string> = {
   critical: 'Reward: 100% EXP to next level',
 };
 
-export function TaskForm() {
+interface TaskFormProps {
+  /** Called after a quest is successfully added — useful for closing parent modals. */
+  onSubmitSuccess?: () => void;
+}
+
+export function TaskForm({ onSubmitSuccess }: TaskFormProps = {}) {
   const addTask = useTaskStore((s) => s.addTask);
   const setIsBulkImportOpen = useUiStore((s) => s.setIsBulkImportOpen);
 
@@ -37,7 +42,10 @@ export function TaskForm() {
     setPriority('medium');
     setRecurrence('none');
     setSubmitted(true);
-    setTimeout(() => setSubmitted(false), 1200);
+    setTimeout(() => {
+      setSubmitted(false);
+      onSubmitSuccess?.();
+    }, 900);
   }
 
   return (
