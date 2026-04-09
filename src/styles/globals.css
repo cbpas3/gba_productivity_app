@@ -127,75 +127,83 @@
 
 /* ── Light Theme ── */
 [data-theme="light"] {
-  /* Backgrounds — clean, neutral warm-white */
-  --color-bg:           #F9FAFB;
-  --color-bg-darkest:   #E5E7EB;
-  --color-bg-dark:      #ECEEF1;
-  --color-bg-mid:       #F3F4F6;
+  /* Backgrounds — cool Zinc/Slate neutrals, professional SaaS feel */
+  --color-bg:           #F4F6F8;
+  --color-bg-darkest:   #D1D5DB;
+  --color-bg-dark:      #E2E8F0;
+  --color-bg-mid:       #EEF1F5;
 
-  /* Surfaces */
-  --color-surface-0:    #E5E7EB;  /* progress bar tracks, deepest surface */
+  /* Surfaces — white card on slightly off-white page */
+  --color-surface-0:    #E2E8F0;   /* deepest; progress tracks, input bg in selects */
   --color-surface-1:    #FFFFFF;
-  --color-surface-2:    #F9FAFB;
-  --color-surface-3:    #F3F4F6;
-  --color-surface-card: rgba(255, 255, 255, 0.97);
-  --color-surface-body: #F9FAFB;
+  --color-surface-2:    #F8FAFC;
+  --color-surface-3:    #F1F5F9;
+  --color-surface-card: rgba(255, 255, 255, 1);
+  --color-surface-body: #F4F6F8;
 
-  /* Borders — clean, low-contrast */
-  --color-border-subtle: rgba(0, 0, 0, 0.07);
-  --color-border-bright: rgba(0, 0, 0, 0.13);
-  --color-border-glow:   rgba(79, 70, 229, 0.3);
+  /* Borders — Slate-based, clean ink lines */
+  --color-border-subtle: rgba(15, 23, 42, 0.08);
+  --color-border-bright: rgba(15, 23, 42, 0.15);
+  --color-border-glow:   rgba(37, 99, 235, 0.28);
 
-  /* Purple system — stronger for readable accents on white */
-  --color-purple-deep:  #EEF2FF;
-  --color-purple-dark:  #4338CA;
-  --color-purple-mid:   #4F46E5;
-  --color-purple-main:  #4F46E5;
-  --color-purple-light: #6366F1;
-  --color-purple-glow:  #4338CA;
+  /* Blue/Indigo accent system — enterprise-grade, never neon */
+  --color-purple-deep:  #EFF6FF;   /* Sky-50: bg tint */
+  --color-purple-dark:  #1D4ED8;   /* Blue-700 */
+  --color-purple-mid:   #2563EB;   /* Blue-600 */
+  --color-purple-main:  #2563EB;   /* Blue-600 — primary buttons */
+  --color-purple-light: #3B82F6;   /* Blue-500 */
+  --color-purple-glow:  #1D4ED8;   /* used by glow-text; maps to flat ink color in light */
 
-  /* Accents — richer/darker for legibility on light backgrounds */
-  --color-accent-cyan:   #0369A1;
-  --color-accent-blue:   #0369A1;
-  --color-accent-green:  #047857;
-  --color-accent-yellow: #B45309;
-  --color-accent-red:    #B91C1C;
-  --color-accent-pink:   #BE185D;
+  /* Semantic accent palette — deep, saturated, ink-on-paper */
+  --color-accent-cyan:   #0369A1;  /* Sky-700 */
+  --color-accent-blue:   #1D4ED8;  /* Blue-700 */
+  --color-accent-green:  #15803D;  /* Green-700 */
+  --color-accent-yellow: #92400E;  /* Amber-800 */
+  --color-accent-red:    #B91C1C;  /* Red-700 */
+  --color-accent-pink:   #9D174D;  /* Pink-800 */
 
   --color-btn-dpad:   #CBD5E1;
   --color-btn-lr:     #94A3B8;
   --color-btn-start:  #94A3B8;
   --color-btn-select: #94A3B8;
 
-  /* Text — high-contrast, professional */
-  --color-text-primary:   #111827;
-  --color-text-secondary: #4B5563;
-  --color-text-muted:     #9CA3AF;
-  --color-text-bright:    #030712;
+  /* Typography — pure ink contrast, professional hierarchy */
+  --color-text-primary:   #0F172A;  /* Slate-900 */
+  --color-text-secondary: #475569;  /* Slate-600 */
+  --color-text-muted:     #94A3B8;  /* Slate-400 */
+  --color-text-bright:    #020617;  /* Slate-950 */
 
-  /* Priority colors — darker for light bg */
-  --color-priority-low:      #047857;
-  --color-priority-medium:   #B45309;
-  --color-priority-high:     #C2410C;
-  --color-priority-critical: #B91C1C;
+  /* Priority — full Tailwind semantic palette */
+  --color-priority-low:      #15803D;  /* Green-700 */
+  --color-priority-medium:   #92400E;  /* Amber-800 */
+  --color-priority-high:     #C2410C;  /* Orange-700 */
+  --color-priority-critical: #B91C1C;  /* Red-700 */
 
-  /* Shadows — elevation-based, no color glow */
-  --shadow-purple-sm: 0 0 0 1px rgba(79, 70, 229, 0.08),
-                      0 1px 3px rgba(0, 0, 0, 0.08),
-                      0 2px 8px rgba(0, 0, 0, 0.05);
-  --shadow-purple-md: 0 0 0 1px rgba(79, 70, 229, 0.1),
-                      0 4px 12px rgba(0, 0, 0, 0.1),
-                      0 8px 24px rgba(0, 0, 0, 0.07);
-  --shadow-purple-lg: 0 8px 32px rgba(0, 0, 0, 0.12),
-                      0 2px 8px rgba(0, 0, 0, 0.08);
-  --shadow-cyan-sm:   0 0 0 1px rgba(3, 105, 161, 0.15),
-                      0 2px 6px rgba(0, 0, 0, 0.06);
-  --shadow-cyan-md:   0 0 0 1px rgba(3, 105, 161, 0.2),
-                      0 4px 12px rgba(0, 0, 0, 0.1);
-  --shadow-green-sm:  0 0 0 1px rgba(4, 120, 87, 0.15),
-                      0 2px 6px rgba(0, 0, 0, 0.06);
-  --glow-text-purple: 0 1px 2px rgba(67, 56, 202, 0.15);
-  --glow-text-cyan:   0 1px 2px rgba(3, 105, 161, 0.2);
+  /* Professional elevation shadows — no colour glow in light mode */
+  --shadow-purple-sm: 0 1px 2px rgba(15, 23, 42, 0.06),
+                      0 2px 6px rgba(15, 23, 42, 0.06);
+  --shadow-purple-md: 0 2px 4px rgba(15, 23, 42, 0.06),
+                      0 6px 16px rgba(15, 23, 42, 0.09);
+  --shadow-purple-lg: 0 8px 24px rgba(15, 23, 42, 0.12),
+                      0 2px 6px rgba(15, 23, 42, 0.07);
+  --shadow-cyan-sm:   0 1px 2px rgba(15, 23, 42, 0.06),
+                      0 2px 6px rgba(15, 23, 42, 0.06);
+  --shadow-cyan-md:   0 2px 8px rgba(15, 23, 42, 0.08),
+                      0 4px 16px rgba(15, 23, 42, 0.08);
+  --shadow-green-sm:  0 1px 2px rgba(15, 23, 42, 0.05),
+                      0 2px 6px rgba(15, 23, 42, 0.05);
+
+  /* Glow text → flat colour text-shadow in light (subtle, professional) */
+  --glow-text-purple: none;
+  --glow-text-cyan:   none;
+
+  /* ── Typography overrides for light theme ──
+     Replace "Press Start 2P" (retro pixel) with a clean semibold
+     system-sans for all UI section headings / labels.
+     GBA game controls keep the pixel font via explicit class overrides
+     so the controller UI still reads as a game controller. */
+  --font-pixel: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+                Helvetica, Arial, sans-serif;
 }
 
 /* ── Reset ── */
@@ -536,4 +544,107 @@ a:hover {
 /* ── Responsive ── */
 @media (max-width: 768px) {
   html { font-size: 15px; }
+}
+
+/* ─────────────────────────────────────────────
+   Light-theme targeted overrides
+   (scoped to [data-theme="light"] so they never
+    affect the default dark theme)
+   ───────────────────────────────────────────── */
+
+/* Headings — system-sans needs heavier weight + tighter tracking to read
+   like strong UI labels (Press Start 2P has built-in visual weight) */
+[data-theme="light"] h1,
+[data-theme="light"] h2,
+[data-theme="light"] h3,
+[data-theme="light"] h4 {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+
+/* Cards — crisp white with a proper ink-border + elevation shadow */
+[data-theme="light"] .card {
+  background: #FFFFFF;
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08),
+              0 4px 12px rgba(15, 23, 42, 0.06);
+}
+[data-theme="light"] .card:hover {
+  border-color: rgba(15, 23, 42, 0.18);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08),
+              0 8px 20px rgba(15, 23, 42, 0.08);
+}
+
+/* Pixel border — solid ink ring, no purple glow */
+[data-theme="light"] .pixel-border {
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.07),
+              0 3px 10px rgba(15, 23, 42, 0.05);
+}
+[data-theme="light"] .pixel-border--glow {
+  border: 1px solid rgba(37, 99, 235, 0.30);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08),
+              0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+/* Glow-text — flat colour, no text-shadow blur in light mode */
+[data-theme="light"] .glow-text--purple {
+  color: var(--color-purple-main);   /* Blue-600 */
+  text-shadow: none;
+}
+[data-theme="light"] .glow-text--cyan {
+  color: var(--color-accent-cyan);   /* Sky-700 */
+  text-shadow: none;
+}
+[data-theme="light"] .glow-text--green {
+  color: var(--color-accent-green);  /* Green-700 */
+  text-shadow: none;
+}
+
+/* Input focus ring — blue instead of purple in light mode */
+[data-theme="light"] .input:focus {
+  border-color: var(--color-purple-main);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+/* Pixel divider — a stronger ink line */
+[data-theme="light"] .pixel-divider {
+  background: rgba(15, 23, 42, 0.10);
+}
+
+/* Primary button — pure blue fill, white text */
+[data-theme="light"] .btn--primary {
+  background: var(--color-purple-main);   /* Blue-600 */
+  border-color: var(--color-purple-dark); /* Blue-700 */
+  color: #FFFFFF;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+}
+[data-theme="light"] .btn--primary:hover:not(:disabled) {
+  background: var(--color-purple-dark);   /* Blue-700 */
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.16);
+}
+
+/* Secondary button — slate border, no semi-transparent dark bg */
+[data-theme="light"] .btn--secondary {
+  background: #FFFFFF;
+  border-color: rgba(15, 23, 42, 0.18);
+  color: var(--color-text-secondary);
+}
+[data-theme="light"] .btn--secondary:hover:not(:disabled) {
+  background: var(--color-surface-3);
+  border-color: rgba(15, 23, 42, 0.28);
+  color: var(--color-text-primary);
+}
+
+/* Ghost button — refined for light */
+[data-theme="light"] .btn--ghost {
+  background: transparent;
+  border-color: rgba(15, 23, 42, 0.14);
+  color: var(--color-text-secondary);
+}
+[data-theme="light"] .btn--ghost:hover:not(:disabled) {
+  background: var(--color-surface-3);
+  border-color: rgba(15, 23, 42, 0.22);
+  color: var(--color-text-primary);
 }

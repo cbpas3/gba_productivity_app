@@ -220,6 +220,48 @@ export function NavBar() {
             font-size: 0.38rem;
           }
         }
+        /* ── Light mode nav-bar overrides ── */
+        [data-theme="light"] .nav-bar {
+          background: #FFFFFF;
+          border-bottom: 1px solid rgba(15, 23, 42, 0.10);
+          box-shadow: none;
+        }
+
+        /* Active tab: blue underline + fill */
+        [data-theme="light"] .nav-bar__tab--active {
+          color: var(--color-purple-main);
+          border-color: var(--color-purple-main);
+          background: rgba(37, 99, 235, 0.06);
+          box-shadow: none;
+        }
+        [data-theme="light"] .nav-bar__tab--active::after {
+          background: var(--color-purple-main);
+          box-shadow: none;
+        }
+
+        /* Hover state: subtle slate tint */
+        [data-theme="light"] .nav-bar__tab:hover {
+          background: var(--color-surface-3);
+          border-color: rgba(15, 23, 42, 0.12);
+          color: var(--color-text-primary);
+        }
+
+        /* Synced button */
+        [data-theme="light"] .nav-bar__tab--synced {
+          color: var(--color-accent-green);
+          border-color: rgba(21, 128, 61, 0.3);
+        }
+
+        /* Mobile bottom bar: white with top border */
+        @media (max-width: 768px) {
+          [data-theme="light"] .nav-bar {
+            background: rgba(255, 255, 255, 0.97);
+            border-top: 1px solid rgba(15, 23, 42, 0.10);
+            box-shadow: 0 -2px 12px rgba(15, 23, 42, 0.08);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+          }
+        }
       `}</style>
     </nav>
   );

@@ -88,6 +88,14 @@ export function Header() {
           flex-shrink: 0;
         }
 
+        /* Light-mode header: clean white bar, no colour gradient */
+        [data-theme="light"] .app-header {
+          background: #FFFFFF;
+          border-bottom: 1px solid rgba(15, 23, 42, 0.10);
+          box-shadow: 0 1px 3px rgba(15, 23, 42, 0.07),
+                      0 3px 10px rgba(15, 23, 42, 0.05);
+        }
+
         .app-header__inner {
           display: flex;
           align-items: center;
@@ -219,6 +227,35 @@ export function Header() {
             align-items: center;
             width: 100%;
           }
+        }
+
+        /* ── Light mode header overrides ── */
+        /* Hide the neon horizontal accent line — belongs to dark gradient header */
+        [data-theme="light"] .app-header__accent-line { display: none; }
+
+        /* Title: use tighter tracking & heavier weight now that it's system-sans */
+        [data-theme="light"] .app-header__title {
+          font-size: 1.05rem;
+          font-weight: 800;
+          letter-spacing: -0.02em;
+          color: var(--color-text-primary);
+        }
+        [data-theme="light"] .app-header__tagline {
+          color: var(--color-text-secondary);
+          font-size: 0.875rem;
+          font-weight: 400;
+        }
+        /* Ornaments look noisy in system-sans size; hide in light mode */
+        [data-theme="light"] .app-header__ornament { display: none; }
+
+        /* Status text: readable on white */
+        [data-theme="light"] .app-header__status-text {
+          color: var(--color-text-muted);
+          font-weight: 600;
+          letter-spacing: 0.04em;
+        }
+        [data-theme="light"] .app-header__game-name {
+          color: var(--color-accent-green);
         }
       `}</style>
     </header>
