@@ -122,9 +122,9 @@ export function TaskForm({ onSubmitSuccess }: TaskFormProps = {}) {
           type="button"
           className="btn btn--secondary task-form__import-btn"
           onClick={() => setIsBulkImportOpen(true)}
-          title="Import tasks from a JSON array"
+          title="Bulk-add multiple quests from a JSON array"
         >
-          [ JSON ]
+          📥 BULK ADD
         </button>
         <button
           type="submit"

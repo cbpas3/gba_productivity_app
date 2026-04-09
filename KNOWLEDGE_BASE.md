@@ -1,7 +1,7 @@
 # Game Productivity App — Knowledge Base
 
 > **Purpose**: Complete project context for LLM handoff. Covers architecture, Gen III save format, Supabase cloud sync, active bugs, and session history.
-> **Last updated**: Session 21 (light theme professional redesign)
+> **Last updated**: Session 23 (board on homepage, form in modal, bulk add modal rewrite)
 
 ---
 
@@ -33,14 +33,14 @@ src/
     EmulatorView/              # GBA canvas + ROM/save loader UI (with file size validation)
     Layout/
       AppLayout.tsx            # Shell: Header + NavBar + tab views (tasks/play) + modals
-      Header.tsx               # Title, emulator status dot, game name, desktop BOARD button
+      Header.tsx               # Title, emulator status dot, game name, desktop “+ ADD QUEST” button
       NavBar.tsx               # Tab bar (Tasks / Play / Theme toggle / Account); fixed bottom on mobile, sticky top on desktop
       PlayRoom.tsx             # Emulator panel + RewardDisplay; volume slider, restart, fullscreen, fast-forward toolbar
-      TaskDashboard.tsx        # RewardPoolBar + Quest Log (TaskForm + TaskList)
+      TaskDashboard.tsx        # RewardPoolBar + inline KanbanBoard (5 columns, drag-and-drop) + “+ ADD QUEST” button
     PlayRoom/
       SyncStatus.tsx           # Manual sync button + last-synced label (only shown when logged in)
     RewardPanel/               # Displays pending rewards + "CLAIM REWARDS" button
-    TaskManager/               # TaskList.tsx + TaskItem.tsx + TaskBoardModal + BulkImportModal
+    TaskManager/               # TaskList.tsx + TaskItem.tsx + TaskBoardModal (Add Quest form modal) + BulkImportModal
     TutorialModal.tsx          # First-time onboarding overlay
   hooks/
     useKeyboardInput.ts        # Global GBA keyboard passthrough
@@ -885,6 +885,23 @@ Tests use synthetic save buffers with R/S-style offsets (game code 0). `detectGa
 127. **Light-theme scoped block overrides** (`globals.css`): Added a `/* Light-theme targeted overrides */` section at end of file. Rules scoped to `[data-theme="light"]`: `h1–h4` (font-weight 700, letter-spacing −0.01em), `.card` (white bg + ink border + elevation shadow), `.pixel-border` (solid Slate-14% ring), `.glow-text--*` (flat colour, `text-shadow: none`), `.input:focus` (Blue-600 ring), `.pixel-divider` (10% Slate), `.btn--primary` (Blue-600 fill, white text), `.btn--secondary` (white bg, ink border), `.btn--ghost` (transparent, ink border hover → Slate tint).
 128. **Header light-mode override** (`Header.tsx`): `[data-theme="light"] .app-header` renders as a clean white bar with 1px Slate bottom border and two-layer elevation shadow. The neon horizontal accent line is hidden (`display: none`). Title overridden to font-weight 800, letter-spacing −0.02em, Slate-900. Tagline set to Slate-600 / 400 weight. Ornament elements hidden.
 129. **NavBar light-mode override** (`NavBar.tsx`): `[data-theme="light"] .nav-bar` uses white background, bottom border, no glow shadow. Active tab indicator switches from cyan neon to solid Blue-600 fill + underline. Hover state uses Slate-100 tint. Mobile bottom bar gets `backdrop-filter: blur(12px)` with 97% white background.
+
+### Session 22: Board on Homepage, Form in Modal
+130. **`TaskDashboard.tsx` restructured**: Removed `<TaskForm />` and `<TaskList />` from the inline Quest Log section. Replaced with inline `<KanbanBoard />` — draggable 5-column board (Low / Medium / High / Critical / Completed) rendered directly on the Tasks page. Max-width expanded from 720 px to 1200 px to accommodate the board grid.
+131. **`KanbanBoard` component** (new, inside `TaskDashboard.tsx`): Self-contained Kanban inside `TaskDashboard`. Shares drag logic with the old `TaskBoardModal`. Header row has the `QUEST BOARD` pixel title and a `+ ADD QUEST` primary button (opens `TaskBoardModal`). Grid responsive: 5 col ≥ 901 px, 3 col ≥ 601 px, 2 col on mobile. Each column shows `"Drop here"` dashed placeholder when empty.
+132. **`TaskBoardModal.tsx` rewritten**: Was the full Kanban board in a modal. Now a focused `"ADD QUEST"` form modal hosting `<TaskForm onSubmitSuccess={close} />`. Max-width 520 px, slides in with CSS `modal-slide-up` animation, closes on backdrop click, auto-closes 900 ms after form success. Mobile: renders as a bottom sheet (full-width, rounded top corners only).
+133. **`TaskForm` extended** (`TaskForm.tsx`): Added optional `onSubmitSuccess?: () => void` prop. Called 900 ms after a successful `addTask` (after the "QUEST ADDED!" flash), giving the parent modal time to show feedback before closing.
+134. **Header button relabelled** (`Header.tsx`): Desktop `aria-label="Open Kanban Quest Board"` / label `📋 BOARD` changed to `aria-label="Add a new quest"` / label `+ ADD QUEST`. Opens the same `TaskBoardModal` (now the Add Quest modal).
+
+### Session 23: Bulk Add Modal Rewrite & Button Rename
+135. **Button renamed** (`TaskForm.tsx`): `[ JSON ]` → `📥 BULK ADD`. Tooltip updated to `"Bulk-add multiple quests from a JSON array"`.
+136. **`BulkImportModal.tsx` rewritten**: Complete overhaul of instructions and UX.
+   - **Description**: Explains the feature in plain English with inline `code` styling on `title`.
+   - **Supported fields table**: Four-column table (Field / Type / Required / Accepted values) documenting all 4 schema fields: `title` (required), `description`, `priority` (`"low"` / `"medium"` / `"high"` / `"critical"`, default `"medium"`), `recurrence` (`"none"` / `"daily"` / `"weekly"`, default `"none"`).
+   - **Example JSON**: Updated to demonstrate all 4 fields including `description` and `recurrence`.
+   - **Validation**: Improved error messages — distinguishes empty input, non-array, missing/invalid `title` (reports index), and JSON syntax errors.
+   - **Success state**: Shows `"✓ N quest(s) added!"` with actual count; button disabled during flash; auto-closes after 1.2 s.
+   - **Styling**: Slide-up entrance animation, light-theme overrides for table/example/error, mobile bottom-sheet layout.
 
 ---
 
