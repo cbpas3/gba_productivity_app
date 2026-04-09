@@ -457,6 +457,21 @@ class EmulatorServiceImpl implements IEmulatorService {
     }
   }
 
+  // IEmulatorService — volume --------------------------------------------
+
+  /**
+   * Sets the emulator volume as a percentage (0–100).
+   * No-op when the module is not initialised.
+   */
+  setVolume(percent: number): void {
+    if (this.module === null) return;
+    try {
+      this.module.setVolume(Math.max(0, Math.min(100, percent)));
+    } catch {
+      // Non-fatal.
+    }
+  }
+
   // IEmulatorService — restart -------------------------------------------
 
   /**

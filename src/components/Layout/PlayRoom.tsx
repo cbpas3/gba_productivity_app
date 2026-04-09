@@ -20,6 +20,8 @@ export function PlayRoom() {
   const toggleFastForward = useEmulatorStore((s) => s.toggleFastForward);
   const isFullscreen = useEmulatorStore((s) => s.isFullscreen);
   const setIsFullscreen = useEmulatorStore((s) => s.setIsFullscreen);
+  const volume = useEmulatorStore((s) => s.volume);
+  const setVolume = useEmulatorStore((s) => s.setVolume);
 
   const isTouchDevice = useRef(
     typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
@@ -37,6 +39,7 @@ export function PlayRoom() {
         initialized.current = true;
         setStatus('idle');
         emulatorService.setFastForward(useEmulatorStore.getState().isFastForward);
+        emulatorService.setVolume(useEmulatorStore.getState().volume);
 
         // If the user is logged in, download their cloud save and stage it
         // so it's auto-injected the moment they pick a ROM file.
@@ -160,6 +163,20 @@ export function PlayRoom() {
             >
               ↺ RST
             </button>
+            <label className="emu-toolbar__volume" title={`Volume: ${volume}%`}>
+              <span className="emu-toolbar__volume-icon">
+                {volume === 0 ? '🔇' : volume < 50 ? '🔉' : '🔊'}
+              </span>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={5}
+                value={volume}
+                onChange={(e) => setVolume(Number(e.target.value))}
+                className="emu-toolbar__volume-slider"
+              />
+            </label>
             <button
               className={`btn emu-toolbar__btn ${isFullscreen ? 'emu-toolbar__btn--active' : ''}`}
               onClick={handleToggleFullscreen}
@@ -262,6 +279,25 @@ export function PlayRoom() {
           gap: var(--space-2);
           width: 100%;
           justify-content: center;
+        }
+
+        .emu-toolbar__volume {
+          display: flex;
+          align-items: center;
+          gap: var(--space-1);
+          cursor: pointer;
+        }
+
+        .emu-toolbar__volume-icon {
+          font-size: 0.9rem;
+          line-height: 1;
+          user-select: none;
+        }
+
+        .emu-toolbar__volume-slider {
+          width: 64px;
+          accent-color: var(--color-accent-cyan, #00e5ff);
+          cursor: pointer;
         }
 
         .emu-toolbar__btn {

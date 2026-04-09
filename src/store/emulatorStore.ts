@@ -13,6 +13,8 @@ interface EmulatorStoreState extends EmulatorState {
   toggleFastForward: () => void;
   isFullscreen: boolean;
   setIsFullscreen: (isFs: boolean) => void;
+  volume: number;
+  setVolume: (percent: number) => void;
   lastSaveSyncTime: number | null;
   isSyncing: boolean;
   lastSyncStatus: 'success' | 'error' | null;
@@ -54,6 +56,12 @@ export const useEmulatorStore = create<EmulatorStoreState>()((set) => ({
 
   isFullscreen: false,
   setIsFullscreen: (isFs) => set({ isFullscreen: isFs }),
+
+  volume: 100,
+  setVolume: (percent) => {
+    emulatorService.setVolume(percent);
+    set({ volume: percent });
+  },
 
   lastSaveSyncTime: null,
   isSyncing: false,
