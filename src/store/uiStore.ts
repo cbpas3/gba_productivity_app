@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 
 export type MobileControlAlignment = 'default' | 'left' | 'right';
 export type ActiveTab = 'tasks' | 'play';
+export type Theme = 'dark' | 'light';
 
 interface UiState {
   hasSeenTutorial: boolean;
@@ -17,6 +18,8 @@ interface UiState {
   setActiveTab: (tab: ActiveTab) => void;
   isAccountOpen: boolean;
   setIsAccountOpen: (isOpen: boolean) => void;
+  theme: Theme;
+  toggleTheme: () => void;
 }
 
 export const useUiStore = create<UiState>()(
@@ -34,6 +37,9 @@ export const useUiStore = create<UiState>()(
       setActiveTab: (tab) => set({ activeTab: tab }),
       isAccountOpen: false,
       setIsAccountOpen: (isOpen) => set({ isAccountOpen: isOpen }),
+      theme: 'dark',
+      toggleTheme: () =>
+        set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
     }),
     {
       name: 'gba-ui-prefs',

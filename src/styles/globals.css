@@ -124,6 +124,66 @@
   --transition-slow:   300ms ease;
 }
 
+/* ── Light Theme ── */
+[data-theme="light"] {
+  --color-bg:           #F1F5F9;
+  --color-bg-darkest:   #E2E8F0;
+  --color-bg-dark:      #E8EEF5;
+  --color-bg-mid:       #EEF2F8;
+
+  --color-surface-1:    #FFFFFF;
+  --color-surface-2:    #F8FAFC;
+  --color-surface-3:    #F1F5F9;
+  --color-surface-card: rgba(255, 255, 255, 0.85);
+  --color-surface-body: #F1F5F9;
+
+  --color-border-subtle: rgba(0, 0, 0, 0.08);
+  --color-border-bright: rgba(0, 0, 0, 0.15);
+  --color-border-glow:   rgba(99, 102, 241, 0.35);
+
+  --color-purple-deep:  #EEF2FF;
+  --color-purple-dark:  #6366F1;
+  --color-purple-mid:   #818CF8;
+  --color-purple-main:  #6366F1;
+  --color-purple-light: #4338CA;
+  --color-purple-glow:  #4338CA;
+
+  --color-accent-cyan:   #0284C7;
+  --color-accent-blue:   #0284C7;
+  --color-accent-green:  #059669;
+  --color-accent-yellow: #D97706;
+  --color-accent-red:    #DC2626;
+  --color-accent-pink:   #DB2777;
+
+  --color-btn-dpad:   #CBD5E1;
+  --color-btn-lr:     #94A3B8;
+  --color-btn-start:  #94A3B8;
+  --color-btn-select: #94A3B8;
+
+  --color-text-primary:   #0F172A;
+  --color-text-secondary: #475569;
+  --color-text-muted:     #94A3B8;
+  --color-text-bright:    #000000;
+
+  --color-priority-low:      #059669;
+  --color-priority-medium:   #D97706;
+  --color-priority-high:     #EA580C;
+  --color-priority-critical: #DC2626;
+
+  --shadow-purple-sm: 0 0 0 1px rgba(99, 102, 241, 0.12),
+                      0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-purple-md: 0 0 0 1px rgba(99, 102, 241, 0.16),
+                      0 4px 16px rgba(0, 0, 0, 0.12),
+                      0 0 24px rgba(99, 102, 241, 0.08);
+  --shadow-purple-lg: 0 8px 32px rgba(0, 0, 0, 0.15),
+                      0 0 32px rgba(99, 102, 241, 0.1);
+  --shadow-cyan-sm:   0 0 10px rgba(2, 132, 199, 0.2);
+  --shadow-cyan-md:   0 0 20px rgba(2, 132, 199, 0.3);
+  --shadow-green-sm:  0 0 10px rgba(5, 150, 105, 0.2);
+  --glow-text-purple: 0 0 12px rgba(67, 56, 202, 0.3);
+  --glow-text-cyan:   0 0 10px rgba(2, 132, 199, 0.35);
+}
+
 /* ── Reset ── */
 *, *::before, *::after {
   box-sizing: border-box;

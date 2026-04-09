@@ -7,6 +7,8 @@ export function NavBar() {
   const activeTab = useUiStore((s) => s.activeTab);
   const setActiveTab = useUiStore((s) => s.setActiveTab);
   const setIsAccountOpen = useUiStore((s) => s.setIsAccountOpen);
+  const theme = useUiStore((s) => s.theme);
+  const toggleTheme = useUiStore((s) => s.toggleTheme);
   const pendingCount = useRewardStore((s) => s.pendingRewards.length);
   const user = useAuthStore((s) => s.user);
 
@@ -34,6 +36,16 @@ export function NavBar() {
               {pendingCount}
             </span>
           )}
+        </button>
+
+        <button
+          className="nav-bar__tab nav-bar__tab--theme"
+          onClick={toggleTheme}
+          title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+          aria-label="Toggle theme"
+        >
+          <span className="nav-bar__tab-icon">{theme === 'dark' ? '☀️' : '🌙'}</span>
+          <span className="nav-bar__tab-label">{theme === 'dark' ? 'LIGHT' : 'DARK'}</span>
         </button>
 
         {/* Account button — only visible when Supabase is configured */}
@@ -146,9 +158,13 @@ export function NavBar() {
           50%       { box-shadow: 0 0 10px rgba(255, 214, 0, 0.8); }
         }
 
-        /* Account button pushed to the right on desktop */
-        .nav-bar__tab--account {
+        /* Theme + Account buttons pushed to the right on desktop */
+        .nav-bar__tab--theme {
           margin-left: auto;
+          font-size: 0.42rem;
+        }
+
+        .nav-bar__tab--account {
           font-size: 0.42rem;
         }
 

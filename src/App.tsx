@@ -8,8 +8,16 @@ import { bootstrapServices } from './services/bootstrap';
 import { useAuthStore } from './store/authStore';
 import { hydrateFromCloud } from './services/syncBootstrap';
 import { supabase, isSupabaseConfigured } from './services/supabaseClient';
+import { useUiStore } from './store/uiStore';
 
 export default function App() {
+  const theme = useUiStore((s) => s.theme);
+
+  // Apply theme to <html> so CSS variable overrides cascade everywhere.
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
+
   // Wire up keyboard input for the emulator globally
   useKeyboardInput();
 
