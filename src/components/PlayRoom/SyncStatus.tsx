@@ -40,12 +40,12 @@ function formatSyncTime(ts: number): string {
 export function SyncStatus() {
   const user = useAuthStore((s) => s.user);
   const lastSaveSyncTime = useEmulatorStore((s) => s.lastSaveSyncTime);
-  const isSyncingSave = useEmulatorStore((s) => s.isSyncingSave);
+  const isSyncing = useEmulatorStore((s) => s.isSyncing);
   const lastSyncStatus = useEmulatorStore((s) => s.lastSyncStatus);
   const setSyncStatus = useEmulatorStore((s) => s.setSyncStatus);
-  const forceSyncSave = useEmulatorStore((s) => s.forceSyncSave);
+  const pushSave = useEmulatorStore((s) => s.pushSave);
+  const pullSave = useEmulatorStore((s) => s.pullSave);
 
-  // Clear the status indicator after 3 seconds.
   const clearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!lastSyncStatus) return;
@@ -56,31 +56,31 @@ export function SyncStatus() {
 
   if (!user) return null;
 
-  const label = lastSaveSyncTime
-    ? `Last synced: ${formatSyncTime(lastSaveSyncTime)}`
-    : 'Not synced';
+  const syncLabel = lastSaveSyncTime ? formatSyncTime(lastSaveSyncTime) : 'Never';
 
   return (
     <div className="sync-status">
-      {lastSyncStatus && (
-        <span className={`sync-status__toast sync-status__toast--${lastSyncStatus}`}>
-          {lastSyncStatus === 'success' ? '✓ Saved to cloud' : '✗ Upload failed'}
-        </span>
-      )}
-      <span className="sync-status__label">{label}</span>
+      <span className={`sync-status__indicator ${lastSyncStatus ? `sync-status__indicator--${lastSyncStatus}` : ''}`}>
+        {lastSyncStatus === 'success' ? '✓' : lastSyncStatus === 'error' ? '✗' : ''}
+      </span>
+      <span className="sync-status__label">
+        {isSyncing ? 'Syncing…' : `Synced: ${syncLabel}`}
+      </span>
       <button
-        className={`btn sync-status__btn ${isSyncingSave ? 'sync-status__btn--busy' : ''}`}
-        onClick={() => forceSyncSave()}
-        disabled={isSyncingSave}
-        title="Load save from cloud"
-        aria-label="Load cloud save"
+        className="btn sync-status__btn"
+        onClick={() => pushSave()}
+        disabled={isSyncing}
+        title="Upload current save to cloud"
       >
-        <span className={`sync-status__icon ${isSyncingSave ? 'sync-status__icon--spin' : ''}`}>
-          {isSyncingSave ? '↻' : '☁'}
-        </span>
-        <span className="sync-status__btn-text">
-          {isSyncingSave ? 'LOADING…' : 'PULL SAVE'}
-        </span>
+        {isSyncing ? '↻' : '↑'} PUSH
+      </button>
+      <button
+        className="btn sync-status__btn"
+        onClick={() => pullSave()}
+        disabled={isSyncing}
+        title="Download save from cloud"
+      >
+        {isSyncing ? '↻' : '↓'} PULL
       </button>
 
       <style>{`
@@ -88,41 +88,31 @@ export function SyncStatus() {
           display: flex;
           align-items: center;
           gap: var(--space-2);
-          width: 100%;
           justify-content: flex-end;
         }
 
-        .sync-status__toast {
-          font-family: var(--font-pixel);
-          font-size: 0.38rem;
-          letter-spacing: 0.05em;
-          animation: sync-toast-fade 3s ease-out forwards;
+        .sync-status__indicator {
+          font-size: 0.9rem;
+          line-height: 1;
+          min-width: 1ch;
+          transition: color 0.2s;
         }
 
-        .sync-status__toast--success {
-          color: var(--color-accent-green, #34d399);
-        }
-
-        .sync-status__toast--error {
-          color: var(--color-accent-red, #f87171);
-        }
-
-        @keyframes sync-toast-fade {
-          0%, 60%  { opacity: 1; }
-          100%     { opacity: 0; }
-        }
+        .sync-status__indicator--success { color: #34d399; }
+        .sync-status__indicator--error   { color: #f87171; }
 
         .sync-status__label {
           font-family: var(--font-pixel);
           font-size: 0.38rem;
           color: var(--color-text-muted);
           letter-spacing: 0.05em;
+          white-space: nowrap;
         }
 
         .sync-status__btn {
           display: flex;
           align-items: center;
-          gap: 4px;
+          gap: 3px;
           font-family: var(--font-pixel);
           font-size: 0.38rem;
           padding: 3px var(--space-2);
@@ -140,25 +130,9 @@ export function SyncStatus() {
           color: var(--color-text-primary);
         }
 
-        .sync-status__btn--busy,
         .sync-status__btn:disabled {
-          opacity: 0.6;
+          opacity: 0.5;
           cursor: not-allowed;
-        }
-
-        .sync-status__icon {
-          font-size: 0.7rem;
-          line-height: 1;
-          display: inline-block;
-        }
-
-        .sync-status__icon--spin {
-          animation: sync-spin 0.8s linear infinite;
-        }
-
-        @keyframes sync-spin {
-          from { transform: rotate(0deg); }
-          to   { transform: rotate(360deg); }
         }
       `}</style>
     </div>

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { EmulatorState, EmulatorStatus } from '../types/emulator';
 import { emulatorService } from '../services/emulatorService';
-import { downloadSave } from '../services/syncService';
+import { uploadSave, downloadSave } from '../services/syncService';
 import { useAuthStore } from './authStore';
 
 interface EmulatorStoreState extends EmulatorState {
@@ -14,11 +14,11 @@ interface EmulatorStoreState extends EmulatorState {
   isFullscreen: boolean;
   setIsFullscreen: (isFs: boolean) => void;
   lastSaveSyncTime: number | null;
-  isSyncingSave: boolean;
+  isSyncing: boolean;
   lastSyncStatus: 'success' | 'error' | null;
-  setLastSaveSyncTime: (ts: number) => void;
   setSyncStatus: (s: 'success' | 'error' | null) => void;
-  forceSyncSave: () => Promise<void>;
+  pushSave: () => Promise<void>;
+  pullSave: () => Promise<void>;
 }
 
 const initialState: EmulatorState = {
@@ -56,35 +56,41 @@ export const useEmulatorStore = create<EmulatorStoreState>()((set) => ({
   setIsFullscreen: (isFs) => set({ isFullscreen: isFs }),
 
   lastSaveSyncTime: null,
-  isSyncingSave: false,
+  isSyncing: false,
   lastSyncStatus: null,
-  setLastSaveSyncTime: (ts) => set({ lastSaveSyncTime: ts }),
   setSyncStatus: (s) => set({ lastSyncStatus: s }),
 
-  forceSyncSave: async () => {
+  pushSave: async () => {
     const userId = useAuthStore.getState().user?.id;
     if (!userId) return;
-
-    set({ isSyncingSave: true });
+    set({ isSyncing: true, lastSyncStatus: null });
     try {
-      // Download the cloud save and apply it to the running game.
-      // Upload is already handled automatically by the debounced callback in
-      // PlayRoom — manual sync means "pull from cloud".
+      const data = emulatorService.getCurrentSave();
+      if (!data) throw new Error('No save data available');
+      await uploadSave(userId, data);
+      set({ isSyncing: false, lastSaveSyncTime: Date.now(), lastSyncStatus: 'success' });
+    } catch (err) {
+      console.error('[EmulatorStore] pushSave failed:', err);
+      set({ isSyncing: false, lastSyncStatus: 'error' });
+    }
+  },
+
+  pullSave: async () => {
+    const userId = useAuthStore.getState().user?.id;
+    if (!userId) return;
+    set({ isSyncing: true, lastSyncStatus: null });
+    try {
       const data = await downloadSave(userId);
       if (!data) throw new Error('No cloud save found');
-
       if (emulatorService.getStatus() === 'running') {
-        // ROM is loaded — inject immediately via the full reload cycle.
         await emulatorService.writeSaveAndReload(data);
       } else {
-        // No ROM loaded yet — stage it so it loads on the next ROM pick.
         emulatorService.stageSaveForNextLoad(data);
       }
-
-      set({ lastSaveSyncTime: Date.now(), isSyncingSave: false, lastSyncStatus: 'success' });
+      set({ isSyncing: false, lastSaveSyncTime: Date.now(), lastSyncStatus: 'success' });
     } catch (err) {
-      console.error('[EmulatorStore] forceSyncSave failed:', err);
-      set({ isSyncingSave: false, lastSyncStatus: 'error' });
+      console.error('[EmulatorStore] pullSave failed:', err);
+      set({ isSyncing: false, lastSyncStatus: 'error' });
     }
   },
 }));

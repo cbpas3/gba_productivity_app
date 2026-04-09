@@ -1,7 +1,7 @@
 # Game Productivity App — Knowledge Base
 
 > **Purpose**: Complete project context for LLM handoff. Covers architecture, Gen III save format, Supabase cloud sync, active bugs, and session history.
-> **Last updated**: Session 18 (save sync fixes, pull save, upload indicator)
+> **Last updated**: Session 19 (remove auto-upload, explicit PUSH/PULL buttons)
 
 ---
 
@@ -459,12 +459,12 @@ gameName: string | null
 errorMessage: string | null
 isFastForward: boolean
 isFullscreen: boolean
-lastSaveSyncTime: number | null   // Unix ms timestamp of last successful .sav upload (auto or manual)
-isSyncingSave: boolean            // true while forceSyncSave() is in flight
-lastSyncStatus: 'success' | 'error' | null  // set after every upload attempt; cleared after 3s by SyncStatus
-setLastSaveSyncTime(ts)           // called by PlayRoom's uploadNow on upload success
-setSyncStatus(s)                  // called by uploadNow and forceSyncSave to signal result to UI
-forceSyncSave()                   // downloads cloud save + calls writeSaveAndReload (or stages if no ROM loaded)
+lastSaveSyncTime: number | null   // Unix ms timestamp of last successful push or pull
+isSyncing: boolean                // true while pushSave() or pullSave() is in flight
+lastSyncStatus: 'success' | 'error' | null  // set after each push/pull; cleared after 3s by SyncStatus
+setSyncStatus(s)                  // called by pushSave/pullSave to signal result to UI
+pushSave()                        // uploads current save via emulatorService.getCurrentSave() + uploadSave()
+pullSave()                        // downloads cloud save + calls writeSaveAndReload (or stageSaveForNextLoad if no ROM)
 ```
 
 ### `eventBus`
@@ -509,28 +509,29 @@ Every mutating action in `taskStore` (add, complete, delete, priority update, bu
 ### Pending Reward Sync
 `rewardStore.addPending` pushes the full `pendingRewards` array to `profiles.pending_exp` after every addition. `markBatchApplied` clears it to `[]`. `syncBootstrap.hydrateFromCloud` restores pending rewards from the profile row after sign-in.
 
-### .sav File Sync (in `PlayRoom.tsx` + `emulatorStore.ts`)
+### .sav File Sync (in `emulatorStore.ts` + `SyncStatus.tsx`)
+
+There is no auto-upload. All sync is explicit via two buttons in `SyncStatus`.
 
 | Direction | Trigger | Detail |
 |---|---|---|
-| **Auto-upload** | mGBA `saveDataUpdatedCallback` fires after in-game save | 2-second debounce (`uploadNow`) → `uploadSave(userId, Uint8Array)` → `saves/{userId}/game.sav`; stamps `lastSaveSyncTime` + sets `lastSyncStatus` on completion |
-| **Flush on hide** | `visibilitychange` (hidden) or `pagehide` | Cancels pending debounce and calls `uploadNow` immediately — prevents timer being killed when user switches apps or locks screen on mobile |
-| **PULL SAVE button** | User clicks PULL SAVE in `SyncStatus` | `emulatorStore.forceSyncSave()` — downloads cloud save, calls `writeSaveAndReload` if ROM loaded (or `stageSaveForNextLoad` if not); sets `lastSyncStatus` |
+| **↑ PUSH** | User clicks PUSH in `SyncStatus` | `emulatorStore.pushSave()` — reads `getCurrentSave()`, calls `uploadSave(userId, data)`, stamps `lastSaveSyncTime` + sets `lastSyncStatus` |
+| **↓ PULL** | User clicks PULL in `SyncStatus` | `emulatorStore.pullSave()` — downloads cloud save, calls `writeSaveAndReload` if ROM loaded (or `stageSaveForNextLoad` if not), stamps `lastSaveSyncTime` |
 | **Download on init** | Emulator init | `downloadSave(userId)` → `emulatorService.stageSaveForNextLoad(data)` — pre-written to VFS *before* `loadGame()` so it loads directly into C heap |
 
 `uploadSave` copies the WASM-backed `Uint8Array` into a plain `ArrayBuffer` before creating a `Blob` (WASM may use `SharedArrayBuffer` which `Blob` rejects).
 
 ### `SyncStatus` component (`src/components/PlayRoom/SyncStatus.tsx`)
 - Renders `null` when no user is logged in (hides entirely for offline users)
-- Displays a `lastSaveSyncTime` label formatted by `formatSyncTime()`:
+- Displays a `Synced: <time>` label formatted by `formatSyncTime()` (or "Never" if null):
   - `< 1 min` → "Just now"
   - `< 60 min` → "N mins ago"
   - Same calendar day → "Today at H:MM AM/PM"
   - Previous day → "Yesterday at H:MM AM/PM"
   - Older → "Mon D at H:MM AM/PM"
-  - `null` → "Not synced"
-- Shows a fading toast when `lastSyncStatus` is set: `✓ Saved to cloud` (green) on success, `✗ Upload failed` (red) on error. Auto-cleared after 3 seconds via `setSyncStatus(null)`. Fires for both auto-uploads and PULL SAVE.
-- Renders a `☁ PULL SAVE` button; shows spinning `↻` + "LOADING…" and disables while `isSyncingSave === true`
+- Shows a `✓` (green) or `✗` (red) indicator when `lastSyncStatus` is set; auto-cleared after 3 seconds
+- **`↑ PUSH` button** — calls `pushSave()`; disabled while `isSyncing`
+- **`↓ PULL` button** — calls `pullSave()`; disabled while `isSyncing`
 - Positioned in a flex header row (`.play-room__emu-header`) alongside the "EMULATOR" section title in `PlayRoom.tsx`
 
 ### NavBar Account Button
@@ -648,14 +649,9 @@ Every mutating action in `taskStore` (add, complete, delete, priority update, bu
 - **Root cause**: `emulatorService.loadRom()` called `loadGame()` first (which reads the existing local VFS save into the C heap save chip), then wrote the staged cloud save to VFS and called `quickReload()`. But `quickReload()` is a CPU-only reset — it never re-reads VFS. The C heap retained the local save; the cloud save write was immediately overwritten on the next in-game save flush.
 - **Fix** (`emulatorService.ts`): Staged save is now pre-written to VFS *before* `loadGame()`. `loadGame` reads it directly into C heap. No `quickReload()` needed. The `this.stagedSaveData = null` clear is also moved to before `loadGame` so a `loadGame` failure doesn't leave stale staged data.
 
-### ✅ Fixed: Save callback lost after `writeSaveAndReload`, breaking all subsequent auto-uploads (Session 18)
-- **Root cause**: `loadGame()` inside `writeSaveAndReload` clears mGBA's core callback registry. `loadRom` re-registers the callback after `loadGame`, but `writeSaveAndReload` didn't. So after any PULL SAVE or reward claim, in-game saves silently stopped uploading for the rest of the session.
-- **Fix** (`emulatorService.ts`): Added step 13 to `writeSaveAndReload` — `addCoreCallbacks({ saveDataUpdatedCallback: this.saveCallback })` called after `loadGame`, matching what `loadRom` already does.
-
-### ✅ Fixed: Auto-upload debounce killed before firing on mobile (Session 18)
-- **Root cause**: The 5-second debounce timer in `scheduleSaveUpload` is destroyed when the browser suspends the page (switching apps, locking screen). The upload never ran and the cloud save stayed stale.
-- **Fix 1** (`PlayRoom.tsx`): Extracted `uploadNow` — the actual upload logic — as a separate callback so it can be called from multiple sites. Debounce reduced from 5s → 2s to shrink the kill window.
-- **Fix 2** (`PlayRoom.tsx`): Added `visibilitychange` (hidden) and `pagehide` event listeners that cancel any pending debounce and call `uploadNow` immediately before the browser can suspend the page.
+### ✅ Fixed: Save callback lost after `writeSaveAndReload` (Session 18)
+- **Root cause**: `loadGame()` inside `writeSaveAndReload` clears mGBA's core callback registry. After any PULL or reward claim, the callback was gone.
+- **Fix** (`emulatorService.ts`): Added step 13 — `addCoreCallbacks({ saveDataUpdatedCallback: this.saveCallback })` after `loadGame`, matching `loadRom`.
 
 ### ✅ Fixed: RST restores emulator save state instead of simulating hardware reset (Session 18)
 - **Root cause**: `quickReload()` respects `restoreAutoSaveStateOnLoad` by default — it resumes from mGBA's `.ss` auto-save snapshot rather than booting the game cold from the title screen.
@@ -859,6 +855,13 @@ Tests use synthetic save buffers with R/S-style offsets (game code 0). `detectGa
 107. **SYNC button renamed to PULL SAVE** (`SyncStatus.tsx`): Clarifies that the button pulls from cloud, not pushes. Loading state shows "LOADING…".
 108. **Upload toast indicator** (`SyncStatus.tsx`): `lastSyncStatus` drives a fading `✓ Saved to cloud` / `✗ Upload failed` toast that appears after every auto-upload and PULL SAVE, then fades and self-clears via a 3-second timeout calling `setSyncStatus(null)`.
 109. **`restart()` save-state fix** (`emulatorService.ts`): Disables `restoreAutoSaveStateOnLoad` and deletes the `.ss` snapshot before `quickReload()`, then re-enables the setting. Previously RST resumed the emulator save state instead of booting cold from the title screen.
+
+### Session 19: Remove Auto-Upload, Explicit PUSH/PULL Buttons
+110. **Auto-upload removed** (`PlayRoom.tsx`): Removed `scheduleSaveUpload`, `uploadNow`, `uploadNowRef`, the debounce timer, and the `visibilitychange`/`pagehide` flush handlers. `emulatorService.setSaveCallback(null)` no longer registered. `uploadSave` import removed from PlayRoom.
+111. **`pushSave()` action** (`emulatorStore.ts`): New action — reads `getCurrentSave()`, calls `uploadSave(userId, data)`, stamps `lastSaveSyncTime`, sets `lastSyncStatus`. Replaces the old `forceSyncSave` upload path.
+112. **`pullSave()` action** (`emulatorStore.ts`): Renamed/cleaned from old `forceSyncSave` — downloads cloud save, calls `writeSaveAndReload` or `stageSaveForNextLoad`. Sets `lastSaveSyncTime` and `lastSyncStatus` on completion.
+113. **Store simplified** (`emulatorStore.ts`): Removed `isAutoUploading`, `setIsAutoUploading`, `setLastSaveSyncTime`, `forceSyncSave`. Renamed `isSyncingSave` → `isSyncing`. Now only has `pushSave`, `pullSave`, `setSyncStatus`.
+114. **`SyncStatus.tsx` rewritten**: Two explicit buttons — `↑ PUSH` and `↓ PULL` — both disabled while `isSyncing`. Label shows `Synced: <time>` or "Synced: Never". `✓`/`✗` indicator appears for 3s after each operation.
 
 ---
 

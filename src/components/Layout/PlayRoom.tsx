@@ -4,7 +4,7 @@ import { RewardDisplay } from '../RewardPanel';
 import { emulatorService } from '../../services/emulatorService';
 import { useEmulatorStore } from '../../store/emulatorStore';
 import { useAuthStore } from '../../store/authStore';
-import { downloadSave, uploadSave } from '../../services/syncService';
+import { downloadSave } from '../../services/syncService';
 import { SyncStatus } from '../PlayRoom/SyncStatus';
 
 export function PlayRoom() {
@@ -28,36 +28,6 @@ export function PlayRoom() {
     () => typeof window !== 'undefined' && window.matchMedia('(orientation: portrait)').matches
   );
 
-  // Debounce timer for save uploads — avoids hammering the API on every tick.
-  const saveUploadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Upload the current save immediately, cancelling any pending debounce.
-  // Called both by the debounce expiry and by the visibilitychange/pagehide
-  // handlers so the upload always fires before the browser suspends the page.
-  const uploadNow = useCallback(() => {
-    const userId = useAuthStore.getState().user?.id;
-    if (!userId) return;
-    const data = emulatorService.getCurrentSave();
-    if (!data) return;
-    uploadSave(userId, data)
-      .then(() => {
-        const store = useEmulatorStore.getState();
-        store.setLastSaveSyncTime(Date.now());
-        store.setSyncStatus('success');
-      })
-      .catch((err) => {
-        console.error('[PlayRoom] save upload failed:', err);
-        useEmulatorStore.getState().setSyncStatus('error');
-      });
-  }, []);
-
-  const scheduleSaveUpload = useCallback(() => {
-    const userId = useAuthStore.getState().user?.id;
-    if (!userId) return;
-    if (saveUploadTimer.current) clearTimeout(saveUploadTimer.current);
-    saveUploadTimer.current = setTimeout(uploadNow, 2000); // reduced from 5s
-  }, [uploadNow]);
-
   const initEmulator = useCallback(() => {
     if (!canvasRef.current) return;
     setStatus('loading');
@@ -67,9 +37,6 @@ export function PlayRoom() {
         initialized.current = true;
         setStatus('idle');
         emulatorService.setFastForward(useEmulatorStore.getState().isFastForward);
-
-        // Register save-write callback for cloud upload.
-        emulatorService.setSaveCallback(scheduleSaveUpload);
 
         // If the user is logged in, download their cloud save and stage it
         // so it's auto-injected the moment they pick a ROM file.
@@ -91,40 +58,14 @@ export function PlayRoom() {
         const message = err instanceof Error ? err.message : String(err);
         setError(message);
       });
-  }, [setStatus, setError, scheduleSaveUpload]);
+  }, [setStatus, setError]);
 
   useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
     initEmulator();
-    return () => {
-      // Clear debounce timer and unregister callback on unmount.
-      if (saveUploadTimer.current) clearTimeout(saveUploadTimer.current);
-      emulatorService.setSaveCallback(null);
-    };
+    return () => {};
   }, [initEmulator]);
-
-  // Flush any pending save upload immediately when the page is hidden or
-  // unloaded — covers switching apps, locking the screen, or closing the tab.
-  // Without this the debounce timer is killed by the browser before it fires.
-  useEffect(() => {
-    const flush = () => {
-      if (saveUploadTimer.current) {
-        clearTimeout(saveUploadTimer.current);
-        saveUploadTimer.current = null;
-      }
-      uploadNow();
-    };
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') flush();
-    };
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    window.addEventListener('pagehide', flush);
-    return () => {
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-      window.removeEventListener('pagehide', flush);
-    };
-  }, [uploadNow]);
 
   useEffect(() => {
     emulatorService.setFastForward(isFastForward);
