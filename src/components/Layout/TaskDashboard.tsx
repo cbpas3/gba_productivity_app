@@ -90,22 +90,24 @@ function RewardPoolBar() {
         }
 
         .reward-pool-bar__title {
-          font-family: var(--font-pixel);
-          font-size: 0.45rem;
-          color: var(--color-text-muted);
-          letter-spacing: 0.1em;
+          font-family: var(--font-ui);
+          font-size: 0.75rem;
+          font-weight: 600;
+          color: var(--color-text-secondary);
+          letter-spacing: 0.03em;
+          text-transform: uppercase;
         }
 
         .reward-pool-bar__pct {
-          font-family: var(--font-pixel);
-          font-size: 0.5rem;
+          font-family: var(--font-ui);
+          font-size: 0.75rem;
+          font-weight: 600;
           color: var(--color-accent-yellow);
-          text-shadow: 0 0 6px rgba(255, 214, 0, 0.5);
           animation: text-pulse-yellow 1.4s ease-in-out infinite;
         }
 
         .reward-pool-bar__play-btn {
-          font-size: 0.45rem;
+          font-size: 0.8125rem;
           padding: var(--space-1) var(--space-3);
           white-space: nowrap;
         }
@@ -135,11 +137,10 @@ function RewardPoolBar() {
         }
 
         .reward-pool-bar__hint {
-          font-family: var(--font-pixel);
-          font-size: 0.35rem;
+          font-family: var(--font-ui);
+          font-size: 0.75rem;
           color: var(--color-text-muted);
-          letter-spacing: 0.06em;
-          opacity: 0.6;
+          opacity: 0.8;
         }
 
         @keyframes text-pulse-yellow {

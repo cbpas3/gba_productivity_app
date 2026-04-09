@@ -162,10 +162,9 @@ export function TaskForm() {
           font-size: 1rem;
         }
         .task-form__hint {
-          font-family: var(--font-pixel);
-          font-size: 0.45rem;
+          font-family: var(--font-ui);
+          font-size: 0.8125rem;
           color: var(--color-accent-yellow);
-          letter-spacing: 0.05em;
           display: flex;
           align-items: center;
           gap: var(--space-1);
@@ -181,7 +180,6 @@ export function TaskForm() {
         .task-form__import-btn {
           flex: 0 0 auto;
           padding: var(--space-3);
-          font-size: 0.6rem;
         }
         .task-form__submit {
           flex: 1;

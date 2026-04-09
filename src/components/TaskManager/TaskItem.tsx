@@ -129,10 +129,10 @@ export function TaskItem({ task }: TaskItemProps) {
           gap: var(--space-2);
         }
         .task-item__status {
-          font-family: var(--font-pixel);
-          font-size: 0.4rem;
+          font-family: var(--font-ui);
+          font-size: 0.6875rem;
           color: var(--color-text-muted);
-          letter-spacing: 0.08em;
+          letter-spacing: 0.02em;
         }
         .task-item__actions {
           display: flex;
@@ -141,7 +141,7 @@ export function TaskItem({ task }: TaskItemProps) {
         }
         .task-item__btn {
           padding: 4px 10px;
-          font-size: 0.45rem;
+          font-size: 0.75rem;
         }
         .task-item__title {
           font-family: var(--font-retro);
@@ -155,13 +155,14 @@ export function TaskItem({ task }: TaskItemProps) {
           border-color: #651fff;
         }
         .task-item__reset-label {
-          font-family: var(--font-pixel);
-          font-size: 0.4rem;
+          font-family: var(--font-ui);
+          font-size: 0.6875rem;
+          font-weight: 500;
           color: var(--color-accent-blue);
-          padding: 4px 8px;
+          padding: 3px 8px;
           border: 1px solid rgba(56, 189, 248, 0.4);
           border-radius: var(--radius-sm);
-          background: rgba(56, 189, 248, 0.1);
+          background: rgba(56, 189, 248, 0.08);
         }
         .task-item__title--done {
           color: var(--color-text-muted);
@@ -185,14 +186,13 @@ export function TaskItem({ task }: TaskItemProps) {
           margin-top: var(--space-1);
         }
         .task-item__reward {
-          font-family: var(--font-pixel);
-          font-size: 0.4rem;
+          font-family: var(--font-ui);
+          font-size: 0.75rem;
           color: var(--color-accent-yellow);
-          letter-spacing: 0.05em;
         }
         .task-item__time {
-          font-family: var(--font-pixel);
-          font-size: 0.4rem;
+          font-family: var(--font-ui);
+          font-size: 0.75rem;
           color: var(--color-text-muted);
         }
       `}</style>

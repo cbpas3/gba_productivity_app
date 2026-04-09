@@ -104,9 +104,9 @@ export function TaskList() {
           display: flex;
           align-items: center;
           gap: var(--space-2);
-          font-family: var(--font-pixel);
-          font-size: 0.45rem;
-          letter-spacing: 0.08em;
+          font-family: var(--font-ui);
+          font-size: 0.8125rem;
+          font-weight: 500;
         }
         .task-list__stat--pending { color: var(--color-accent-yellow); }
         .task-list__stat--done    { color: var(--color-accent-green); }
@@ -120,9 +120,9 @@ export function TaskList() {
           border: 1px solid var(--color-border-subtle);
           border-radius: var(--radius-sm);
           color: var(--color-text-muted);
-          font-family: var(--font-pixel);
-          font-size: 0.4rem;
-          letter-spacing: 0.06em;
+          font-family: var(--font-ui);
+          font-size: 0.75rem;
+          font-weight: 500;
           padding: 4px 10px;
           cursor: pointer;
           transition: all var(--transition-fast);
@@ -166,10 +166,10 @@ export function TaskList() {
           background: var(--color-surface-1);
         }
         .task-list__empty-text {
-          font-family: var(--font-pixel);
-          font-size: 0.5rem;
+          font-family: var(--font-ui);
+          font-size: 0.875rem;
+          font-weight: 500;
           color: var(--color-text-muted);
-          letter-spacing: 0.1em;
           text-align: center;
         }
         .task-list__empty-sub {

@@ -28,6 +28,7 @@
   --color-bg-mid:       #141820;
 
   /* Surfaces */
+  --color-surface-0:    #0D0F14;
   --color-surface-1:    #10131A;
   --color-surface-2:    #161B26;
   --color-surface-3:    #1C2233;
@@ -126,62 +127,75 @@
 
 /* ── Light Theme ── */
 [data-theme="light"] {
-  --color-bg:           #F1F5F9;
-  --color-bg-darkest:   #E2E8F0;
-  --color-bg-dark:      #E8EEF5;
-  --color-bg-mid:       #EEF2F8;
+  /* Backgrounds — clean, neutral warm-white */
+  --color-bg:           #F9FAFB;
+  --color-bg-darkest:   #E5E7EB;
+  --color-bg-dark:      #ECEEF1;
+  --color-bg-mid:       #F3F4F6;
 
+  /* Surfaces */
+  --color-surface-0:    #E5E7EB;  /* progress bar tracks, deepest surface */
   --color-surface-1:    #FFFFFF;
-  --color-surface-2:    #F8FAFC;
-  --color-surface-3:    #F1F5F9;
-  --color-surface-card: rgba(255, 255, 255, 0.85);
-  --color-surface-body: #F1F5F9;
+  --color-surface-2:    #F9FAFB;
+  --color-surface-3:    #F3F4F6;
+  --color-surface-card: rgba(255, 255, 255, 0.97);
+  --color-surface-body: #F9FAFB;
 
-  --color-border-subtle: rgba(0, 0, 0, 0.08);
-  --color-border-bright: rgba(0, 0, 0, 0.15);
-  --color-border-glow:   rgba(99, 102, 241, 0.35);
+  /* Borders — clean, low-contrast */
+  --color-border-subtle: rgba(0, 0, 0, 0.07);
+  --color-border-bright: rgba(0, 0, 0, 0.13);
+  --color-border-glow:   rgba(79, 70, 229, 0.3);
 
+  /* Purple system — stronger for readable accents on white */
   --color-purple-deep:  #EEF2FF;
-  --color-purple-dark:  #6366F1;
-  --color-purple-mid:   #818CF8;
-  --color-purple-main:  #6366F1;
-  --color-purple-light: #4338CA;
+  --color-purple-dark:  #4338CA;
+  --color-purple-mid:   #4F46E5;
+  --color-purple-main:  #4F46E5;
+  --color-purple-light: #6366F1;
   --color-purple-glow:  #4338CA;
 
-  --color-accent-cyan:   #0284C7;
-  --color-accent-blue:   #0284C7;
-  --color-accent-green:  #059669;
-  --color-accent-yellow: #D97706;
-  --color-accent-red:    #DC2626;
-  --color-accent-pink:   #DB2777;
+  /* Accents — richer/darker for legibility on light backgrounds */
+  --color-accent-cyan:   #0369A1;
+  --color-accent-blue:   #0369A1;
+  --color-accent-green:  #047857;
+  --color-accent-yellow: #B45309;
+  --color-accent-red:    #B91C1C;
+  --color-accent-pink:   #BE185D;
 
   --color-btn-dpad:   #CBD5E1;
   --color-btn-lr:     #94A3B8;
   --color-btn-start:  #94A3B8;
   --color-btn-select: #94A3B8;
 
-  --color-text-primary:   #0F172A;
-  --color-text-secondary: #475569;
-  --color-text-muted:     #94A3B8;
-  --color-text-bright:    #000000;
+  /* Text — high-contrast, professional */
+  --color-text-primary:   #111827;
+  --color-text-secondary: #4B5563;
+  --color-text-muted:     #9CA3AF;
+  --color-text-bright:    #030712;
 
-  --color-priority-low:      #059669;
-  --color-priority-medium:   #D97706;
-  --color-priority-high:     #EA580C;
-  --color-priority-critical: #DC2626;
+  /* Priority colors — darker for light bg */
+  --color-priority-low:      #047857;
+  --color-priority-medium:   #B45309;
+  --color-priority-high:     #C2410C;
+  --color-priority-critical: #B91C1C;
 
-  --shadow-purple-sm: 0 0 0 1px rgba(99, 102, 241, 0.12),
+  /* Shadows — elevation-based, no color glow */
+  --shadow-purple-sm: 0 0 0 1px rgba(79, 70, 229, 0.08),
+                      0 1px 3px rgba(0, 0, 0, 0.08),
+                      0 2px 8px rgba(0, 0, 0, 0.05);
+  --shadow-purple-md: 0 0 0 1px rgba(79, 70, 229, 0.1),
+                      0 4px 12px rgba(0, 0, 0, 0.1),
+                      0 8px 24px rgba(0, 0, 0, 0.07);
+  --shadow-purple-lg: 0 8px 32px rgba(0, 0, 0, 0.12),
                       0 2px 8px rgba(0, 0, 0, 0.08);
-  --shadow-purple-md: 0 0 0 1px rgba(99, 102, 241, 0.16),
-                      0 4px 16px rgba(0, 0, 0, 0.12),
-                      0 0 24px rgba(99, 102, 241, 0.08);
-  --shadow-purple-lg: 0 8px 32px rgba(0, 0, 0, 0.15),
-                      0 0 32px rgba(99, 102, 241, 0.1);
-  --shadow-cyan-sm:   0 0 10px rgba(2, 132, 199, 0.2);
-  --shadow-cyan-md:   0 0 20px rgba(2, 132, 199, 0.3);
-  --shadow-green-sm:  0 0 10px rgba(5, 150, 105, 0.2);
-  --glow-text-purple: 0 0 12px rgba(67, 56, 202, 0.3);
-  --glow-text-cyan:   0 0 10px rgba(2, 132, 199, 0.35);
+  --shadow-cyan-sm:   0 0 0 1px rgba(3, 105, 161, 0.15),
+                      0 2px 6px rgba(0, 0, 0, 0.06);
+  --shadow-cyan-md:   0 0 0 1px rgba(3, 105, 161, 0.2),
+                      0 4px 12px rgba(0, 0, 0, 0.1);
+  --shadow-green-sm:  0 0 0 1px rgba(4, 120, 87, 0.15),
+                      0 2px 6px rgba(0, 0, 0, 0.06);
+  --glow-text-purple: 0 1px 2px rgba(67, 56, 202, 0.15);
+  --glow-text-cyan:   0 1px 2px rgba(3, 105, 161, 0.2);
 }
 
 /* ── Reset ── */
@@ -287,10 +301,10 @@ a:hover {
   justify-content: center;
   gap: var(--space-2);
   padding: var(--space-2) var(--space-4);
-  font-family: var(--font-pixel);
-  /* Increased from 0.6rem — Press Start 2P is now comfortable at 0.65rem */
-  font-size: 0.65rem;
-  letter-spacing: 0.06em;
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -324,6 +338,17 @@ a:hover {
 .btn--primary:hover:not(:disabled) {
   background: var(--color-purple-light);
   box-shadow: var(--shadow-purple-md);
+}
+
+.btn--secondary {
+  background: var(--color-surface-2);
+  border-color: var(--color-border-bright);
+  color: var(--color-text-secondary);
+}
+.btn--secondary:hover:not(:disabled) {
+  border-color: var(--color-border-bright);
+  color: var(--color-text-primary);
+  background: var(--color-surface-3);
 }
 
 .btn--success {
@@ -388,24 +413,23 @@ a:hover {
 /* ── Label ── */
 .label {
   display: block;
-  font-family: var(--font-pixel);
-  /* Increased from 0.5rem */
-  font-size: 0.55rem;
-  letter-spacing: 0.1em;
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.03em;
   color: var(--color-text-secondary);
   margin-bottom: var(--space-1);
-  text-transform: uppercase;
 }
 
 /* ── Badge ── */
 .badge {
   display: inline-block;
-  padding: 3px 8px;
-  font-family: var(--font-pixel);
-  /* Increased from 0.45rem */
-  font-size: 0.5rem;
+  padding: 2px 8px;
+  font-family: var(--font-ui);
+  font-size: 0.6875rem;
+  font-weight: 600;
   border-radius: var(--radius-sm);
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
   border: 1px solid currentColor;
 }
