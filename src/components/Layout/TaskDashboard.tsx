@@ -93,14 +93,14 @@ function RewardPoolBar() {
 
         .reward-pool-bar__icon {
           font-family: var(--font-pixel);
-          font-size: 0.65rem;
+          font-size: 0.8rem;
           color: var(--color-accent-yellow);
           text-shadow: 0 0 8px rgba(255, 214, 0, 0.7);
         }
 
         .reward-pool-bar__title {
           font-family: var(--font-ui);
-          font-size: 0.75rem;
+          font-size: 0.8rem;
           font-weight: 600;
           color: var(--color-text-secondary);
           letter-spacing: 0.03em;
@@ -109,7 +109,7 @@ function RewardPoolBar() {
 
         .reward-pool-bar__pct {
           font-family: var(--font-ui);
-          font-size: 0.75rem;
+          font-size: 0.8rem;
           font-weight: 600;
           color: var(--color-accent-yellow);
           animation: text-pulse-yellow 1.4s ease-in-out infinite;
@@ -301,8 +301,8 @@ function KanbanBoard() {
 
         .kanban-board__title {
           font-family: var(--font-pixel);
-          font-size: 0.6rem;
-          letter-spacing: 0.15em;
+          font-size: 0.875rem;
+          letter-spacing: 0.08em;
         }
 
         .kanban-board__add-btn {
@@ -331,16 +331,17 @@ function KanbanBoard() {
 
         .kanban-col__title {
           font-family: var(--font-pixel);
-          font-size: 0.45rem;
+          font-size: 0.72rem;
           padding: var(--space-2) var(--space-3);
           background: rgba(0, 0, 0, 0.25);
           border-bottom: 2px solid transparent;
           text-align: center;
-          letter-spacing: 0.08em;
+          letter-spacing: 0.04em;
           color: var(--color-text-secondary);
-          white-space: nowrap;
+          white-space: normal;
           overflow: hidden;
           text-overflow: ellipsis;
+          line-height: 1.4;
         }
 
         .kanban-col__list {
@@ -354,7 +355,7 @@ function KanbanBoard() {
 
         .kanban-col__empty {
           font-family: var(--font-ui);
-          font-size: 0.7rem;
+          font-size: 0.85rem;
           color: var(--color-text-muted);
           text-align: center;
           padding: var(--space-4) var(--space-2);
@@ -386,7 +387,7 @@ function KanbanBoard() {
 
         .kanban-card__title {
           font-family: var(--font-ui);
-          font-size: 0.875rem;
+          font-size: 0.9375rem;
           color: var(--color-text-primary);
           word-break: break-word;
           line-height: 1.4;
@@ -394,13 +395,13 @@ function KanbanBoard() {
 
         .kanban-card__badge {
           font-family: var(--font-pixel);
-          font-size: 0.35rem;
+          font-size: 0.65rem;
           color: var(--color-text-muted);
           background: rgba(0, 0, 0, 0.2);
-          padding: 2px 5px;
+          padding: 3px 6px;
           border-radius: var(--radius-sm);
           align-self: flex-start;
-          letter-spacing: 0.06em;
+          letter-spacing: 0.04em;
         }
 
         .kanban-card--locked {

@@ -96,8 +96,8 @@ export function NavBar() {
           color: var(--color-text-muted);
           cursor: pointer;
           font-family: var(--font-pixel);
-          font-size: 0.5rem;
-          letter-spacing: 0.1em;
+          font-size: 0.8rem;
+          letter-spacing: 0.05em;
           transition: all var(--transition-fast);
         }
 
@@ -133,7 +133,7 @@ export function NavBar() {
 
         .nav-bar__tab-label {
           font-family: var(--font-pixel);
-          font-size: 0.5rem;
+          font-size: 0.8rem;
         }
 
         .nav-bar__badge {
@@ -147,7 +147,7 @@ export function NavBar() {
           color: #1a0a2e;
           border-radius: 8px;
           font-family: var(--font-pixel);
-          font-size: 0.35rem;
+          font-size: 0.65rem;
           font-weight: bold;
           line-height: 1;
           animation: badge-pulse 1.4s ease-in-out infinite;
@@ -161,11 +161,11 @@ export function NavBar() {
         /* Theme + Account buttons pushed to the right on desktop */
         .nav-bar__tab--theme {
           margin-left: auto;
-          font-size: 0.42rem;
+          font-size: 0.8rem;
         }
 
         .nav-bar__tab--account {
-          font-size: 0.42rem;
+          font-size: 0.8rem;
         }
 
         .nav-bar__tab--synced {
@@ -217,7 +217,7 @@ export function NavBar() {
           }
 
           .nav-bar__tab-label {
-            font-size: 0.38rem;
+            font-size: 0.72rem;
           }
         }
         /* ── Light mode nav-bar overrides ── */

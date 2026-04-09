@@ -1,7 +1,7 @@
 # Game Productivity App — Knowledge Base
 
 > **Purpose**: Complete project context for LLM handoff. Covers architecture, Gen III save format, Supabase cloud sync, active bugs, and session history.
-> **Last updated**: Session 23 (board on homepage, form in modal, bulk add modal rewrite)
+> **Last updated**: Session 24 (global font-size readability pass)
 
 ---
 
@@ -902,6 +902,13 @@ Tests use synthetic save buffers with R/S-style offsets (game code 0). `detectGa
    - **Validation**: Improved error messages — distinguishes empty input, non-array, missing/invalid `title` (reports index), and JSON syntax errors.
    - **Success state**: Shows `"✓ N quest(s) added!"` with actual count; button disabled during flash; auto-closes after 1.2 s.
    - **Styling**: Slide-up entrance animation, light-theme overrides for table/example/error, mobile bottom-sheet layout.
+
+### Session 24: Global Font-Size Readability Pass
+**Root cause**: All `font-family: var(--font-pixel)` sizes had been calibrated for _Press Start 2P_, which renders large and visually bold even at small `rem` values (e.g. `0.45rem` in Press Start 2P is still readable). After Session 21 overrode `--font-pixel` to system-sans in light mode, those same numeric values became near-invisible in system-sans (7–8 px). Dark mode was also affected at certain viewport scales. Fix: raised every sub-threshold size to a legible floor while preserving the pixelated aesthetic.
+
+137. **`NavBar.tsx` font sizes fixed**: Tab base (`font-size` on `.nav-bar__tab` and `.nav-bar__tab-label`): `0.5rem` → `0.8rem`; letter-spacing reduced from `0.1em` to `0.05em`. Theme and Account buttons: `0.42rem` → `0.8rem`. Notification badge: `0.35rem` → `0.65rem`. Mobile tab label: `0.38rem` → `0.72rem`.
+138. **`TaskDashboard.tsx` font sizes fixed**: Reward bar icon/title/pct: `0.65–0.75rem` → `0.8rem` each. Board title: `0.6rem` → `0.875rem`; letter-spacing `0.15em` → `0.08em`. Column headers: `0.45rem` → `0.72rem`; `white-space: nowrap` → `normal` so long labels wrap. Empty-state: `0.7rem` → `0.85rem`. Card title: `0.875rem` → `0.9375rem`. Card badge: `0.35rem` → `0.65rem`; padding `2px 5px` → `3px 6px`.
+139. **`Header.tsx` font sizes fixed**: Status text (IDLE label): `0.4rem` → `0.75rem`; letter-spacing `0.1em` → `0.06em`. Desktop board button: `0.5rem` → `0.8rem`.
 
 ---
 

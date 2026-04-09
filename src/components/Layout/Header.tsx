@@ -170,9 +170,9 @@ export function Header() {
 
         .app-header__status-text {
           font-family: var(--font-pixel);
-          font-size: 0.4rem;
+          font-size: 0.75rem;
           color: var(--color-text-muted);
-          letter-spacing: 0.1em;
+          letter-spacing: 0.06em;
         }
 
         .app-header__accent-line {
@@ -195,7 +195,7 @@ export function Header() {
         }
 
         .app-header__board-btn {
-          font-size: 0.5rem;
+          font-size: 0.8rem;
           padding: var(--space-2) var(--space-3);
           box-shadow: var(--shadow-cyan-sm);
         }
