@@ -1,6 +1,10 @@
+import { useEffect, useRef } from 'react';
 import { emulatorService } from '../../services/emulatorService';
 import type { GbaButton } from '../../types/emulator';
 import { useUiStore } from '../../store/uiStore';
+import { useEmulatorStore } from '../../store/emulatorStore';
+
+// ── Standard control button (D-pad, shoulders, Start, Select) ────────────────
 
 interface ControlButtonProps {
   button: GbaButton;
@@ -22,21 +26,15 @@ function ControlButton({ button, label, className, 'aria-label': ariaLabel }: Co
   }
 
   function handlePointerLeave(e: React.PointerEvent) {
-    // Only release when the pointer is NOT captured. While captured (i.e. the user
-    // is actively holding the button), pointerLeave still fires if the pointer drifts
-    // outside the element bounds, but pointerUp will release it — so releasing here
-    // too would drop the button prematurely on any slight finger movement.
     if (!(e.currentTarget as HTMLElement).hasPointerCapture(e.pointerId)) {
       emulatorService.releaseButton(button);
     }
   }
 
   function handlePointerCancel() {
-    // Release if OS interrupts the pointer (e.g. phone call, notification)
     emulatorService.releaseButton(button);
   }
 
-  // Explicitly prevent default on touch events to stop Safari from scrolling
   function handleTouch(e: React.TouchEvent) {
     e.preventDefault();
   }
@@ -65,9 +63,150 @@ function ControlButton({ button, label, className, 'aria-label': ariaLabel }: Co
   );
 }
 
+// ── Turbo-capable action button (A / B) ──────────────────────────────────────
+
+const TURBO_INTERVAL_MS = 50; // rapid-fire every 50 ms (~20 presses/sec)
+
+interface TurboButtonProps {
+  button: GbaButton;
+  label: string;
+  className: string;
+  'aria-label': string;
+  turboActive: boolean;
+  /** Latch mode: tap once to start firing continuously, tap again to stop. No holding required. */
+  turboLatch?: boolean;
+}
+
+function TurboButton({ button, label, className, 'aria-label': ariaLabel, turboActive, turboLatch = false }: TurboButtonProps) {
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const turboPhaseRef = useRef<boolean>(false);
+  const turboActiveRef = useRef(turboActive);
+  turboActiveRef.current = turboActive;
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current !== null) clearInterval(intervalRef.current);
+      emulatorService.releaseButton(button);
+    };
+  }, [button]);
+
+  // If turbo is toggled off externally while latch is running, stop the interval
+  useEffect(() => {
+    if (!turboActive && intervalRef.current !== null) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+      emulatorService.releaseButton(button);
+      turboPhaseRef.current = false;
+    }
+  }, [turboActive, button]);
+
+  function startTurbo() {
+    if (intervalRef.current !== null) return;
+    emulatorService.pressButton(button);
+    turboPhaseRef.current = true;
+    intervalRef.current = setInterval(() => {
+      if (turboPhaseRef.current) {
+        emulatorService.releaseButton(button);
+        turboPhaseRef.current = false;
+      } else {
+        emulatorService.pressButton(button);
+        turboPhaseRef.current = true;
+      }
+    }, TURBO_INTERVAL_MS);
+  }
+
+  function stopTurbo() {
+    if (intervalRef.current !== null) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    emulatorService.releaseButton(button);
+    turboPhaseRef.current = false;
+  }
+
+  function handlePointerDown(e: React.PointerEvent) {
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    if (!turboActiveRef.current) {
+      emulatorService.pressButton(button);
+      return;
+    }
+    if (turboLatch) {
+      // Latch mode: tap toggles the continuous interval on/off
+      intervalRef.current !== null ? stopTurbo() : startTurbo();
+    } else {
+      startTurbo();
+    }
+  }
+
+  function handlePointerUp(e: React.PointerEvent) {
+    e.preventDefault();
+    if (!turboActiveRef.current) {
+      emulatorService.releaseButton(button);
+      return;
+    }
+    // Latch mode: release does nothing — interval keeps running until next tap
+    if (!turboLatch) stopTurbo();
+  }
+
+  function handlePointerLeave(e: React.PointerEvent) {
+    if ((e.currentTarget as HTMLElement).hasPointerCapture(e.pointerId)) return;
+    if (!turboActiveRef.current) {
+      emulatorService.releaseButton(button);
+      return;
+    }
+    if (!turboLatch) stopTurbo();
+  }
+
+  function handlePointerCancel() {
+    if (!turboActiveRef.current) {
+      emulatorService.releaseButton(button);
+      return;
+    }
+    if (!turboLatch) stopTurbo();
+  }
+
+  function handleTouch(e: React.TouchEvent) {
+    e.preventDefault();
+  }
+
+  function handleTouchCancel(e: React.TouchEvent) {
+    e.preventDefault();
+    if (!turboActiveRef.current) {
+      emulatorService.releaseButton(button);
+      return;
+    }
+    if (!turboLatch) stopTurbo();
+  }
+
+  return (
+    <button
+      className={`${className} ${turboActive ? `${className}--turbo` : ''}`}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerLeave={handlePointerLeave}
+      onPointerCancel={handlePointerCancel}
+      onTouchStart={handleTouch}
+      onTouchEnd={handleTouch}
+      onTouchMove={handleTouch}
+      onTouchCancel={handleTouchCancel}
+      aria-label={ariaLabel}
+      aria-pressed={turboActive}
+      type="button"
+    >
+      {label}
+    </button>
+  );
+}
+
 export function GbaControls() {
   const alignment = useUiStore((s) => s.mobileControlAlignment);
   const setAlignment = useUiStore((s) => s.setMobileControlAlignment);
+  const isTurboA = useEmulatorStore((s) => s.isTurboA);
+  const isTurboB = useEmulatorStore((s) => s.isTurboB);
+  const toggleTurboA = useEmulatorStore((s) => s.toggleTurboA);
+  const toggleTurboB = useEmulatorStore((s) => s.toggleTurboB);
 
   const toggleAlignment = () => {
     if (alignment === 'default') setAlignment('left');
@@ -154,18 +293,43 @@ export function GbaControls() {
 
         {/* A + B buttons */}
         <div className="gba-controls__ab" aria-label="Action buttons">
-          <ControlButton
-            button="B"
-            label="B"
-            className="gba-controls__action gba-controls__action--b"
-            aria-label="B button"
-          />
-          <ControlButton
-            button="A"
-            label="A"
-            className="gba-controls__action gba-controls__action--a"
-            aria-label="A button"
-          />
+          <div className="gba-controls__ab-col">
+            <TurboButton
+              button="B"
+              label="B"
+              className="gba-controls__action gba-controls__action--b"
+              aria-label="B button"
+              turboActive={isTurboB}
+            />
+            <button
+              className={`gba-controls__turbo-toggle ${isTurboB ? 'gba-controls__turbo-toggle--on' : ''}`}
+              onClick={toggleTurboB}
+              type="button"
+              aria-label="Toggle turbo B"
+              aria-pressed={isTurboB}
+            >
+              {isTurboB ? '⚡B' : 'TB'}
+            </button>
+          </div>
+          <div className="gba-controls__ab-col">
+            <TurboButton
+              button="A"
+              label="A"
+              className="gba-controls__action gba-controls__action--a"
+              aria-label="A button"
+              turboActive={isTurboA}
+              turboLatch
+            />
+            <button
+              className={`gba-controls__turbo-toggle ${isTurboA ? 'gba-controls__turbo-toggle--on' : ''}`}
+              onClick={toggleTurboA}
+              type="button"
+              aria-label="Toggle turbo A"
+              aria-pressed={isTurboA}
+            >
+              {isTurboA ? '⚡A' : 'TA'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -313,8 +477,15 @@ export function GbaControls() {
         .gba-controls__ab {
           display: flex;
           align-items: center;
-          gap: var(--space-1);
+          gap: var(--space-2);
           position: relative;
+        }
+
+        .gba-controls__ab-col {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 4px;
         }
 
         .gba-controls__action {
@@ -337,23 +508,58 @@ export function GbaControls() {
         .gba-controls__action--a {
           background: var(--color-btn-a);
           box-shadow: 0 4px 0 #7F0000, 0 0 10px rgba(255,23,68,0.5);
-          align-self: flex-start;
-          margin-top: 0;
         }
         .gba-controls__action--a:active {
           transform: translateY(3px);
           box-shadow: 0 1px 0 #7F0000, 0 0 14px rgba(255,23,68,0.8);
         }
+        .gba-controls__action--a--turbo {
+          box-shadow: 0 4px 0 #7F0000, 0 0 16px rgba(255,23,68,0.9), 0 0 4px 2px rgba(255,200,0,0.6);
+          animation: turbo-pulse-a 0.1s step-end infinite;
+        }
 
         .gba-controls__action--b {
           background: var(--color-btn-b);
           box-shadow: 0 4px 0 #7F5200, 0 0 10px rgba(255,171,0,0.5);
-          align-self: flex-end;
-          margin-bottom: 0;
         }
         .gba-controls__action--b:active {
           transform: translateY(3px);
           box-shadow: 0 1px 0 #7F5200, 0 0 14px rgba(255,171,0,0.8);
+        }
+        .gba-controls__action--b--turbo {
+          box-shadow: 0 4px 0 #7F5200, 0 0 16px rgba(255,171,0,0.9), 0 0 4px 2px rgba(255,200,0,0.6);
+          animation: turbo-pulse-b 0.1s step-end infinite;
+        }
+
+        @keyframes turbo-pulse-a {
+          0%, 100% { filter: brightness(1); }
+          50%       { filter: brightness(1.4); }
+        }
+        @keyframes turbo-pulse-b {
+          0%, 100% { filter: brightness(1); }
+          50%       { filter: brightness(1.4); }
+        }
+
+        /* ── Turbo toggle pill ── */
+        .gba-controls__turbo-toggle {
+          width: 36px;
+          height: 14px;
+          background: rgba(0,0,0,0.25);
+          border: 1px solid rgba(255,255,255,0.2);
+          border-radius: var(--radius-pill);
+          color: var(--color-text-muted);
+          font-family: var(--font-pixel);
+          font-size: 0.3rem;
+          letter-spacing: 0.04em;
+          cursor: pointer;
+          transition: background var(--transition-fast), border-color var(--transition-fast);
+          touch-action: manipulation;
+        }
+        .gba-controls__turbo-toggle--on {
+          background: rgba(255, 200, 0, 0.25);
+          border-color: rgba(255, 200, 0, 0.7);
+          color: #FFD700;
+          text-shadow: 0 0 6px rgba(255,200,0,0.8);
         }
 
         /* Use pointer type rather than viewport width to detect touch devices.

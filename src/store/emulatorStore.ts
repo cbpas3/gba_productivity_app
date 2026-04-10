@@ -9,8 +9,13 @@ interface EmulatorStoreState extends EmulatorState {
   setRomLoaded: (name: string) => void;
   setError: (msg: string) => void;
   reset: () => void;
-  isFastForward: boolean;
-  toggleFastForward: () => void;
+  gameSpeed: 1 | 2 | 3 | 4 | 5;
+  setGameSpeed: (speed: 1 | 2 | 3 | 4 | 5) => void;
+  cycleGameSpeed: () => void;
+  isTurboA: boolean;
+  isTurboB: boolean;
+  toggleTurboA: () => void;
+  toggleTurboB: () => void;
   isFullscreen: boolean;
   setIsFullscreen: (isFs: boolean) => void;
   volume: number;
@@ -51,8 +56,20 @@ export const useEmulatorStore = create<EmulatorStoreState>()((set) => ({
 
   reset: () => set({ ...initialState }),
 
-  isFastForward: false,
-  toggleFastForward: () => set((s) => ({ isFastForward: !s.isFastForward })),
+  gameSpeed: 1,
+  setGameSpeed: (speed) => {
+    emulatorService.setGameSpeed(speed);
+    set({ gameSpeed: speed });
+  },
+  cycleGameSpeed: () => {
+    const next = ((useEmulatorStore.getState().gameSpeed % 5) + 1) as 1 | 2 | 3 | 4 | 5;
+    emulatorService.setGameSpeed(next);
+    set({ gameSpeed: next });
+  },
+  isTurboA: false,
+  isTurboB: false,
+  toggleTurboA: () => set((s) => ({ isTurboA: !s.isTurboA })),
+  toggleTurboB: () => set((s) => ({ isTurboB: !s.isTurboB })),
 
   isFullscreen: false,
   setIsFullscreen: (isFs) => set({ isFullscreen: isFs }),

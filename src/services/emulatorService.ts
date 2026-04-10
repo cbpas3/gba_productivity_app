@@ -513,18 +513,18 @@ class EmulatorServiceImpl implements IEmulatorService {
   // IEmulatorService — speed control --------------------------------------
 
   /**
-   * Enables or disables fast-forward (2x speed).
+   * Sets game speed as a multiplier (1–5x).
    * Tries multiple mGBA APIs for broad compatibility.
    */
-  setFastForward(enabled: boolean): void {
+  setGameSpeed(speed: 1 | 2 | 3 | 4 | 5): void {
     if (this.module === null) return;
     try {
       if (typeof this.module.setFastForwardMultiplier === 'function') {
-        this.module.setFastForwardMultiplier(enabled ? 2 : 1);
+        this.module.setFastForwardMultiplier(speed);
       } else if (typeof this.module.setFastForwardRatio === 'function') {
-        this.module.setFastForwardRatio(enabled ? 2.0 : 1.0);
+        this.module.setFastForwardRatio(speed);
       } else {
-        this.module.setCoreSettings({ fastForwardMultiplier: enabled ? 2 : 1 });
+        this.module.setCoreSettings({ fastForwardMultiplier: speed });
       }
     } catch {
       // Non-fatal — speed control not available on this build.

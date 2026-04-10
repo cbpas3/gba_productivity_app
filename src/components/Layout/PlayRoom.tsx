@@ -16,8 +16,8 @@ export function PlayRoom() {
   const setError = useEmulatorStore((s) => s.setError);
   const errorMessage = useEmulatorStore((s) => s.errorMessage);
   const romLoaded = useEmulatorStore((s) => s.romLoaded);
-  const isFastForward = useEmulatorStore((s) => s.isFastForward);
-  const toggleFastForward = useEmulatorStore((s) => s.toggleFastForward);
+  const gameSpeed = useEmulatorStore((s) => s.gameSpeed);
+  const cycleGameSpeed = useEmulatorStore((s) => s.cycleGameSpeed);
   const isFullscreen = useEmulatorStore((s) => s.isFullscreen);
   const setIsFullscreen = useEmulatorStore((s) => s.setIsFullscreen);
   const volume = useEmulatorStore((s) => s.volume);
@@ -38,7 +38,7 @@ export function PlayRoom() {
       .then(async () => {
         initialized.current = true;
         setStatus('idle');
-        emulatorService.setFastForward(useEmulatorStore.getState().isFastForward);
+        emulatorService.setGameSpeed(useEmulatorStore.getState().gameSpeed);
         emulatorService.setVolume(useEmulatorStore.getState().volume);
 
         // If the user is logged in, download their cloud save and stage it
@@ -71,8 +71,8 @@ export function PlayRoom() {
   }, [initEmulator]);
 
   useEffect(() => {
-    emulatorService.setFastForward(isFastForward);
-  }, [isFastForward]);
+    emulatorService.setGameSpeed(gameSpeed);
+  }, [gameSpeed]);
 
   useEffect(() => {
     const handleFsChange = () => {
@@ -149,11 +149,11 @@ export function PlayRoom() {
 
           <div className="emu-toolbar">
             <button
-              className={`btn emu-toolbar__btn ${isFastForward ? 'emu-toolbar__btn--active' : ''}`}
-              onClick={toggleFastForward}
-              title={isFastForward ? 'Normal Speed (1x)' : 'Fast Forward (2x)'}
+              className={`btn emu-toolbar__btn ${gameSpeed > 1 ? 'emu-toolbar__btn--active' : ''}`}
+              onClick={cycleGameSpeed}
+              title={`Game Speed: ${gameSpeed}x (click to cycle)`}
             >
-              {isFastForward ? '⏩ 2x' : '▶ 1x'}
+              {gameSpeed === 1 ? '▶ 1×' : `⏩ ${gameSpeed}×`}
             </button>
             <button
               className="btn emu-toolbar__btn"
