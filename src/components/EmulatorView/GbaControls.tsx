@@ -63,6 +63,132 @@ function ControlButton({ button, label, className, 'aria-label': ariaLabel }: Co
   );
 }
 
+// ── Thumbstick D-pad ─────────────────────────────────────────────────────────
+//
+// A single 120×120 capture zone overlaid on the cross visual. Pointer movement
+// is resolved to a direction set via angle + dead-zone; buttons are pressed /
+// released incrementally as the thumb slides, exactly like a thumbstick.
+
+const DPAD_SIZE = 120;   // total bounding box (3 × 40px cells)
+const DEAD_ZONE = 16;    // px from center — no directional input
+
+type DDir = 'Up' | 'Down' | 'Left' | 'Right';
+
+function getDirsFromOffset(dx: number, dy: number): Set<DDir> {
+  const dirs = new Set<DDir>();
+  if (Math.sqrt(dx * dx + dy * dy) < DEAD_ZONE) return dirs;
+  // atan2: right=0°, down=90°, left=±180°, up=-90°
+  const a = Math.atan2(dy, dx) * (180 / Math.PI);
+  if (a > -112.5 && a <= -67.5)              dirs.add('Up');
+  else if (a > -67.5 && a <= -22.5)        { dirs.add('Up');   dirs.add('Right'); }
+  else if (a > -22.5 && a <=  22.5)          dirs.add('Right');
+  else if (a >  22.5 && a <=  67.5)        { dirs.add('Down'); dirs.add('Right'); }
+  else if (a >  67.5 && a <= 112.5)          dirs.add('Down');
+  else if (a > 112.5 && a <= 157.5)        { dirs.add('Down'); dirs.add('Left');  }
+  else if (a >  157.5 || a <= -157.5)        dirs.add('Left');
+  else                                      { dirs.add('Up');   dirs.add('Left');  }
+  return dirs;
+}
+
+function DPad() {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const activeDirs = useRef<Set<DDir>>(new Set());
+  // visual highlight state — stored in a ref and applied via direct DOM mutation
+  // to avoid re-render on every pointermove
+  const cellRefs = {
+    Up:    useRef<HTMLDivElement>(null),
+    Down:  useRef<HTMLDivElement>(null),
+    Left:  useRef<HTMLDivElement>(null),
+    Right: useRef<HTMLDivElement>(null),
+  };
+
+  function applyDirs(next: Set<DDir>) {
+    const prev = activeDirs.current;
+    // Release buttons no longer held
+    for (const d of prev) {
+      if (!next.has(d)) {
+        emulatorService.releaseButton(d as GbaButton);
+        if (cellRefs[d].current) cellRefs[d].current!.classList.remove('dpad-cell--active');
+      }
+    }
+    // Press newly held buttons
+    for (const d of next) {
+      if (!prev.has(d)) {
+        emulatorService.pressButton(d as GbaButton);
+        if (cellRefs[d].current) cellRefs[d].current!.classList.add('dpad-cell--active');
+      }
+    }
+    activeDirs.current = next;
+  }
+
+  function releaseAll() {
+    for (const d of activeDirs.current) {
+      emulatorService.releaseButton(d as GbaButton);
+      if (cellRefs[d].current) cellRefs[d].current!.classList.remove('dpad-cell--active');
+    }
+    activeDirs.current = new Set();
+  }
+
+  function getOffset(e: React.PointerEvent): { dx: number; dy: number } {
+    const rect = containerRef.current!.getBoundingClientRect();
+    return {
+      dx: e.clientX - (rect.left + DPAD_SIZE / 2),
+      dy: e.clientY - (rect.top  + DPAD_SIZE / 2),
+    };
+  }
+
+  function handlePointerDown(e: React.PointerEvent) {
+    e.preventDefault();
+    containerRef.current!.setPointerCapture(e.pointerId);
+    const { dx, dy } = getOffset(e);
+    applyDirs(getDirsFromOffset(dx, dy));
+  }
+
+  function handlePointerMove(e: React.PointerEvent) {
+    if (!containerRef.current!.hasPointerCapture(e.pointerId)) return;
+    e.preventDefault();
+    const { dx, dy } = getOffset(e);
+    applyDirs(getDirsFromOffset(dx, dy));
+  }
+
+  function handlePointerUp(e: React.PointerEvent) {
+    e.preventDefault();
+    releaseAll();
+  }
+
+  function handlePointerCancel() {
+    releaseAll();
+  }
+
+  function blockTouch(e: React.TouchEvent) {
+    e.preventDefault();
+  }
+
+  useEffect(() => () => releaseAll(), []);
+
+  return (
+    <div
+      ref={containerRef}
+      className="gba-dpad"
+      aria-label="D-pad"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
+      onTouchStart={blockTouch}
+      onTouchMove={blockTouch}
+      onTouchEnd={blockTouch}
+    >
+      {/* Cross visual — 3×3 CSS grid, corners empty */}
+      <div ref={cellRefs.Up}    className="dpad-cell dpad-cell--up">▲</div>
+      <div ref={cellRefs.Left}  className="dpad-cell dpad-cell--left">◄</div>
+      <div className="dpad-cell dpad-cell--center" aria-hidden />
+      <div ref={cellRefs.Right} className="dpad-cell dpad-cell--right">►</div>
+      <div ref={cellRefs.Down}  className="dpad-cell dpad-cell--down">▼</div>
+    </div>
+  );
+}
+
 // ── Turbo-capable action button (A / B) ──────────────────────────────────────
 
 const TURBO_INTERVAL_MS = 50; // rapid-fire every 50 ms (~20 presses/sec)
@@ -245,35 +371,7 @@ export function GbaControls() {
       <div className="gba-controls__body">
 
         {/* D-pad */}
-        <div className="gba-controls__dpad" aria-label="D-pad">
-          <ControlButton
-            button="Up"
-            label="▲"
-            className="gba-controls__dpad-btn gba-controls__dpad-btn--up"
-            aria-label="D-pad Up"
-          />
-          <div className="gba-controls__dpad-row">
-            <ControlButton
-              button="Left"
-              label="◄"
-              className="gba-controls__dpad-btn gba-controls__dpad-btn--left"
-              aria-label="D-pad Left"
-            />
-            <div className="gba-controls__dpad-center" aria-hidden />
-            <ControlButton
-              button="Right"
-              label="►"
-              className="gba-controls__dpad-btn gba-controls__dpad-btn--right"
-              aria-label="D-pad Right"
-            />
-          </div>
-          <ControlButton
-            button="Down"
-            label="▼"
-            className="gba-controls__dpad-btn gba-controls__dpad-btn--down"
-            aria-label="D-pad Down"
-          />
-        </div>
+        <DPad />
 
         {/* Center cluster: Select + Start */}
         <div className="gba-controls__center">
@@ -391,51 +489,41 @@ export function GbaControls() {
           gap: var(--space-2);
         }
 
-        /* ── D-pad ── */
-        .gba-controls__dpad {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 0;
+        /* ── D-pad (thumbstick capture zone) ── */
+        .gba-dpad {
+          width: 120px;
+          height: 120px;
+          display: grid;
+          grid-template-columns: 40px 40px 40px;
+          grid-template-rows: 40px 40px 40px;
+          touch-action: none;
+          cursor: pointer;
+          user-select: none;
+          -webkit-user-select: none;
         }
 
-        .gba-controls__dpad-row {
-          display: flex;
-          align-items: center;
-          gap: 0;
-        }
-
-        .gba-controls__dpad-btn {
-          width: 40px;
-          height: 40px;
+        .dpad-cell {
           background: var(--color-btn-dpad);
           border: 2px solid #37474F;
           color: var(--color-text-secondary);
           font-size: 0.7rem;
-          cursor: pointer;
           display: flex;
           align-items: center;
           justify-content: center;
-          transition: background-color var(--transition-fast), transform var(--transition-fast);
-          touch-action: none;
-        }
-
-        .gba-controls__dpad-btn--up    { border-radius: var(--radius-sm) var(--radius-sm) 0 0; }
-        .gba-controls__dpad-btn--down  { border-radius: 0 0 var(--radius-sm) var(--radius-sm); }
-        .gba-controls__dpad-btn--left  { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
-        .gba-controls__dpad-btn--right { border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
-
-        .gba-controls__dpad-btn:active {
-          background: #37474F;
-          transform: scale(0.92);
-        }
-
-        .gba-controls__dpad-center {
-          width: 40px;
-          height: 40px;
-          background: var(--color-btn-dpad);
-          border: 2px solid #37474F;
           pointer-events: none;
+          transition: background-color var(--transition-fast);
+        }
+
+        /* cross shape — corners left empty (transparent) */
+        .dpad-cell--up    { grid-column: 2; grid-row: 1; border-radius: var(--radius-sm) var(--radius-sm) 0 0; }
+        .dpad-cell--left  { grid-column: 1; grid-row: 2; border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+        .dpad-cell--center{ grid-column: 2; grid-row: 2; }
+        .dpad-cell--right { grid-column: 3; grid-row: 2; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+        .dpad-cell--down  { grid-column: 2; grid-row: 3; border-radius: 0 0 var(--radius-sm) var(--radius-sm); }
+
+        .dpad-cell--active {
+          background: #37474F;
+          color: var(--color-text-bright);
         }
 
         /* ── Center pills ── */
