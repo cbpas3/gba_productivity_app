@@ -397,7 +397,7 @@ a:hover {
   border-radius: var(--radius-sm);
   color: var(--color-text-primary);
   font-family: var(--font-ui);
-  font-size: 0.9375rem;
+  font-size: 1rem; /* must be ≥16px to prevent iOS Safari auto-zoom on focus */
   padding: var(--space-2) var(--space-3);
   width: 100%;
   outline: none;

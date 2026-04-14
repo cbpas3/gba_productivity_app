@@ -4,6 +4,15 @@
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
+-- MIGRATION: add 'repeatable' to recurrence CHECK constraint
+-- Run this once if you created the table with the old schema.
+-- ---------------------------------------------------------------------------
+-- ALTER TABLE public.tasks DROP CONSTRAINT IF EXISTS tasks_recurrence_check;
+-- ALTER TABLE public.tasks ADD CONSTRAINT tasks_recurrence_check
+--   CHECK (recurrence IN ('none', 'daily', 'weekly', 'repeatable'));
+-- ---------------------------------------------------------------------------
+
+-- ---------------------------------------------------------------------------
 -- 1. TASKS table
 -- ---------------------------------------------------------------------------
 -- Stores each user's quest list. Timestamps are stored as bigint milliseconds
@@ -17,7 +26,7 @@ CREATE TABLE IF NOT EXISTS public.tasks (
   description       text        NOT NULL DEFAULT '',
   priority          text        NOT NULL CHECK (priority IN ('low', 'medium', 'high', 'critical')),
   status            text        NOT NULL CHECK (status IN ('pending', 'in-progress', 'completed')),
-  recurrence        text        NOT NULL DEFAULT 'none' CHECK (recurrence IN ('none', 'daily', 'weekly')),
+  recurrence        text        NOT NULL DEFAULT 'none' CHECK (recurrence IN ('none', 'daily', 'weekly', 'repeatable')),
   reward_claimed    boolean     NOT NULL DEFAULT false,
   created_at        bigint      NOT NULL,
   completed_at      bigint,
