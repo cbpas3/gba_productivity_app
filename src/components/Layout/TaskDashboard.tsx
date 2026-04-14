@@ -376,6 +376,9 @@ function KanbanBoard() {
           gap: 4px;
           cursor: grab;
           transition: transform 0.1s, box-shadow 0.1s, opacity 0.1s;
+          user-select: none;
+          -webkit-user-select: none;
+          -webkit-touch-callout: none;
         }
         .kanban-card:hover {
           box-shadow: var(--shadow-purple-sm);
