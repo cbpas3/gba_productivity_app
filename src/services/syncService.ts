@@ -30,6 +30,7 @@ function taskToRow(userId: string, task: Task) {
     created_at:        task.createdAt,
     completed_at:      task.completedAt ?? null,
     last_completed_at: task.lastCompletedAt ?? null,
+    custom_reward:     task.customReward ?? null,
   };
 }
 
@@ -46,6 +47,7 @@ function rowToTask(row: Record<string, unknown>): Task {
     createdAt:        row.created_at as number,
     completedAt:      row.completed_at as number | undefined,
     lastCompletedAt:  row.last_completed_at as number | null,
+    ...(row.custom_reward ? { customReward: row.custom_reward as Reward } : {}),
   };
 }
 
