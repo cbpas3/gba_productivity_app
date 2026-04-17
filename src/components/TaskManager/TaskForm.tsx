@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import type { TaskPriority, TaskRecurrence } from '../../types/task';
+import type { Reward } from '../../types/reward';
 import { useTaskStore } from '../../store/taskStore';
 import { useUiStore } from '../../store/uiStore';
+import { ITEM_REWARD_OPTIONS } from '../../lib/gen3/itemRewards';
 
 const PRIORITY_OPTIONS: { value: TaskPriority; label: string; icon: string }[] = [
   { value: 'low',      label: 'LOW',      icon: '>' },
@@ -10,11 +12,11 @@ const PRIORITY_OPTIONS: { value: TaskPriority; label: string; icon: string }[] =
   { value: 'critical', label: 'CRITICAL', icon: '!!!' },
 ];
 
-const REWARD_HINTS: Record<TaskPriority, string> = {
-  low:      'Reward: 10% EXP to next level',
-  medium:   'Reward: 20% EXP to next level',
-  high:     'Reward: 50% EXP to next level',
-  critical: 'Reward: 100% EXP to next level',
+const DEFAULT_REWARD_HINTS: Record<TaskPriority, string> = {
+  low:      '10% EXP to next level',
+  medium:   '20% EXP to next level',
+  high:     '50% EXP to next level',
+  critical: '100% EXP to next level',
 };
 
 interface TaskFormProps {
@@ -26,21 +28,30 @@ export function TaskForm({ onSubmitSuccess }: TaskFormProps = {}) {
   const addTask = useTaskStore((s) => s.addTask);
   const setIsBulkImportOpen = useUiStore((s) => s.setIsBulkImportOpen);
 
-  const [title,       setTitle]       = useState('');
-  const [description, setDescription] = useState('');
-  const [priority,    setPriority]    = useState<TaskPriority>('medium');
-  const [recurrence,  setRecurrence]  = useState<TaskRecurrence>('none');
-  const [submitted,   setSubmitted]   = useState(false);
+  const [title,         setTitle]         = useState('');
+  const [description,   setDescription]   = useState('');
+  const [priority,      setPriority]      = useState<TaskPriority>('medium');
+  const [recurrence,    setRecurrence]    = useState<TaskRecurrence>('none');
+  const [rewardOverride, setRewardOverride] = useState<string>('default');
+  const [submitted,     setSubmitted]     = useState(false);
+
+  const selectedItem = ITEM_REWARD_OPTIONS.find((o) => o.id === rewardOverride);
+  const customReward: Reward | undefined = selectedItem?.reward;
+
+  const rewardHint = selectedItem
+    ? selectedItem.description
+    : DEFAULT_REWARD_HINTS[priority];
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmedTitle = title.trim();
     if (!trimmedTitle) return;
-    addTask(trimmedTitle, description.trim(), priority, recurrence);
+    addTask(trimmedTitle, description.trim(), priority, recurrence, customReward);
     setTitle('');
     setDescription('');
     setPriority('medium');
     setRecurrence('none');
+    setRewardOverride('default');
     setSubmitted(true);
     setTimeout(() => {
       setSubmitted(false);
@@ -113,9 +124,28 @@ export function TaskForm({ onSubmitSuccess }: TaskFormProps = {}) {
         </select>
       </div>
 
+      <div className="task-form__field">
+        <label className="label" htmlFor="task-reward">Reward Item</label>
+        <select
+          id="task-reward"
+          className="input"
+          value={rewardOverride}
+          onChange={(e) => setRewardOverride(e.target.value)}
+        >
+          <option value="default">Default (EXP by priority)</option>
+          <optgroup label="─── Items ───">
+            {ITEM_REWARD_OPTIONS.map((opt) => (
+              <option key={opt.id} value={opt.id}>
+                {opt.label}
+              </option>
+            ))}
+          </optgroup>
+        </select>
+      </div>
+
       <div className="task-form__hint">
         <span className="task-form__hint-icon">*</span>
-        {REWARD_HINTS[priority]}
+        Reward: {rewardHint}
       </div>
 
       <div className="task-form__actions">

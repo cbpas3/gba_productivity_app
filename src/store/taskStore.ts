@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Task, TaskPriority, TaskRecurrence } from '../types/task';
 import type { Reward } from '../types/reward';
+
 import { eventBus } from './eventBus';
 import { useRewardStore } from './rewardStore';
 import { useAuthStore } from './authStore';
@@ -28,7 +29,7 @@ function buildReward(priority: TaskPriority): Reward {
 
 interface TaskState {
   tasks: Task[];
-  addTask: (title: string, description: string, priority: TaskPriority, recurrence?: TaskRecurrence) => void;
+  addTask: (title: string, description: string, priority: TaskPriority, recurrence?: TaskRecurrence, customReward?: Reward) => void;
   bulkAddTasks: (rawTasks: Partial<Task>[]) => void;
   completeTask: (id: string) => void;
   deleteTask: (id: string) => void;
@@ -43,7 +44,7 @@ export const useTaskStore = create<TaskState>()(
     (set, get) => ({
       tasks: [],
 
-      addTask: (title, description, priority, recurrence = 'none') => {
+      addTask: (title, description, priority, recurrence = 'none', customReward) => {
         const task: Task = {
           id: crypto.randomUUID(),
           title,
@@ -54,6 +55,7 @@ export const useTaskStore = create<TaskState>()(
           createdAt: Date.now(),
           lastCompletedAt: null,
           rewardClaimed: false,
+          ...(customReward ? { customReward } : {}),
         };
         set((state) => ({ tasks: [...state.tasks, task] }));
         eventBus.emit('task:created', { task });
@@ -94,7 +96,7 @@ export const useTaskStore = create<TaskState>()(
         const task = get().tasks.find((t) => t.id === id);
         if (!task || task.status === 'completed') return;
 
-        const reward = buildReward(task.priority);
+        const reward = task.customReward ?? buildReward(task.priority);
         const now = Date.now();
 
         // Repeatable tasks: give reward then immediately reset to pending.
