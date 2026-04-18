@@ -1,8 +1,9 @@
 import type { Reward, RewardType } from '../../types/reward';
 import { useRewardStore } from '../../store/rewardStore';
+import { findItemOption } from '../../lib/gen3/itemRewards';
 
 const REWARD_LABELS: Record<RewardType, string> = {
-  give_item:              'RARE CANDY',
+  give_item:              'HELD ITEM',
   add_experience:         '+EXP',
   add_experience_percent: '%EXP',
   boost_evs:              'EV BOOST',
@@ -34,11 +35,19 @@ const REWARD_COLORS: Record<RewardType, string> = {
 function formatRewardDetail(reward: Reward): string {
   const { payload } = reward;
   switch (payload.kind) {
-    case 'item':               return `Item #${payload.itemId} -> Slot ${reward.targetSlot + 1}`;
+    case 'item': {
+      const name = findItemOption(reward)?.label ?? `Item #${payload.itemId}`;
+      return `${name} -> Slot ${reward.targetSlot + 1}`;
+    }
     case 'experience':         return `+${payload.amount} EXP -> Slot ${reward.targetSlot + 1}`;
     case 'experience_percent': return `${payload.percent}% EXP to next lv -> Slot ${reward.targetSlot + 1}`;
     case 'evs':                return `${payload.stat.toUpperCase()} +${payload.amount} EV`;
-    case 'ivs':                return `IVs set -> Slot ${reward.targetSlot + 1}`;
+    case 'ivs': {
+      const stats = Object.entries(payload.values)
+        .map(([k, v]) => `${k.toUpperCase()}=${v}`)
+        .join(', ');
+      return `${stats} -> Slot ${reward.targetSlot + 1}`;
+    }
     case 'heal':               return `Healed -> Slot ${reward.targetSlot + 1}`;
     case 'move':               return `Move #${payload.moveId} in slot ${payload.slot + 1}`;
   }

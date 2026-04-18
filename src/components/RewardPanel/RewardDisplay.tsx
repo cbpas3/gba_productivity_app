@@ -1,6 +1,7 @@
 import type { Reward, RewardType } from "../../types/reward";
 import { useRewardStore } from "../../store/rewardStore";
 import { RewardLog } from "./RewardLog";
+import { findItemOption } from "../../lib/gen3/itemRewards";
 
 const REWARD_ICONS: Record<RewardType, string> = {
   give_item: "*",
@@ -13,7 +14,7 @@ const REWARD_ICONS: Record<RewardType, string> = {
 };
 
 const REWARD_LABELS: Record<RewardType, string> = {
-  give_item: "Rare Candy",
+  give_item: "Item",
   add_experience: "+EXP",
   add_experience_percent: "%EXP",
   boost_evs: "EV Boost",
@@ -78,20 +79,22 @@ export function RewardDisplay() {
       {pendingCount > 0 && (
         <div className="reward-display__pending-list">
           <p className="reward-display__pending-title">QUEUED REWARDS:</p>
-          {pendingRewards.slice(0, 5).map((reward, i) => (
-            <div key={i} className="reward-display__pending-item">
-              <span className="reward-display__pending-icon">
-                {REWARD_ICONS[reward.type]}
-              </span>
-              <span className="reward-display__pending-label">
-                {getRewardValueShort(reward)}
-                {REWARD_LABELS[reward.type]}
-              </span>
-              <span className="reward-display__pending-slot">
-                Slot {reward.targetSlot + 1}
-              </span>
-            </div>
-          ))}
+          {pendingRewards.slice(0, 5).map((reward, i) => {
+            const item = findItemOption(reward);
+            return (
+              <div key={i} className="reward-display__pending-item">
+                <span className="reward-display__pending-icon">
+                  {REWARD_ICONS[reward.type]}
+                </span>
+                <span className="reward-display__pending-label">
+                  {item ? item.label : `${getRewardValueShort(reward)}${REWARD_LABELS[reward.type]}`}
+                </span>
+                <span className="reward-display__pending-slot">
+                  Slot {reward.targetSlot + 1}
+                </span>
+              </div>
+            );
+          })}
           {pendingCount > 5 && (
             <p className="reward-display__pending-more">
               +{pendingCount - 5} more...

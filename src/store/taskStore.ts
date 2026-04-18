@@ -84,6 +84,7 @@ export const useTaskStore = create<TaskState>()(
           createdAt: Date.now(),
           lastCompletedAt: null,
           rewardClaimed: false,
+          ...(rt.customReward ? { customReward: rt.customReward as Reward } : {}),
         }));
 
         set((state) => ({ tasks: [...state.tasks, ...resolvedTasks] }));

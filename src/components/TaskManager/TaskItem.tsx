@@ -1,5 +1,6 @@
 import type { Task, TaskPriority } from '../../types/task';
 import { useTaskStore } from '../../store/taskStore';
+import { findItemOption } from '../../lib/gen3/itemRewards';
 
 const PRIORITY_COLORS: Record<TaskPriority, string> = {
   low:      'badge--low',
@@ -14,6 +15,14 @@ const PRIORITY_REWARDS: Record<TaskPriority, string> = {
   high:     '50% EXP',
   critical: '100% EXP',
 };
+
+function getRewardLabel(task: Task): string {
+  if (task.customReward) {
+    const item = findItemOption(task.customReward);
+    if (item) return item.label;
+  }
+  return PRIORITY_REWARDS[task.priority];
+}
 
 const STATUS_LABEL: Record<Task['status'], string> = {
   pending:     'PENDING',
@@ -53,7 +62,7 @@ export function TaskItem({ task }: TaskItemProps) {
             <button
               className="btn btn--success task-item__btn"
               onClick={() => completeTask(task.id)}
-              title={`Complete — earns ${PRIORITY_REWARDS[task.priority]}`}
+              title={`Complete — earns ${getRewardLabel(task)}`}
               aria-label={`Complete task: ${task.title}`}
             >
               ✓ DONE
@@ -86,7 +95,7 @@ export function TaskItem({ task }: TaskItemProps) {
 
       <div className="task-item__footer">
         <span className="task-item__reward">
-          * Reward: {PRIORITY_REWARDS[task.priority]}
+          * Reward: {getRewardLabel(task)}
         </span>
         {task.completedAt && (
           <span className="task-item__time">

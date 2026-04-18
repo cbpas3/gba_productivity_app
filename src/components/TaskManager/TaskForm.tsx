@@ -3,7 +3,7 @@ import type { TaskPriority, TaskRecurrence } from '../../types/task';
 import type { Reward } from '../../types/reward';
 import { useTaskStore } from '../../store/taskStore';
 import { useUiStore } from '../../store/uiStore';
-import { ITEM_REWARD_OPTIONS } from '../../lib/gen3/itemRewards';
+import { ITEM_REWARD_OPTIONS, IV_REWARD_OPTIONS, EV_REWARD_OPTIONS, ALL_REWARD_OPTIONS } from '../../lib/gen3/itemRewards';
 
 const PRIORITY_OPTIONS: { value: TaskPriority; label: string; icon: string }[] = [
   { value: 'low',      label: 'LOW',      icon: '>' },
@@ -35,7 +35,7 @@ export function TaskForm({ onSubmitSuccess }: TaskFormProps = {}) {
   const [rewardOverride, setRewardOverride] = useState<string>('default');
   const [submitted,     setSubmitted]     = useState(false);
 
-  const selectedItem = ITEM_REWARD_OPTIONS.find((o) => o.id === rewardOverride);
+  const selectedItem = ALL_REWARD_OPTIONS.find((o) => o.id === rewardOverride);
   const customReward: Reward | undefined = selectedItem?.reward;
 
   const rewardHint = selectedItem
@@ -135,9 +135,17 @@ export function TaskForm({ onSubmitSuccess }: TaskFormProps = {}) {
           <option value="default">Default (EXP by priority)</option>
           <optgroup label="─── Items ───">
             {ITEM_REWARD_OPTIONS.map((opt) => (
-              <option key={opt.id} value={opt.id}>
-                {opt.label}
-              </option>
+              <option key={opt.id} value={opt.id}>{opt.label}</option>
+            ))}
+          </optgroup>
+          <optgroup label="─── IV Boosts ───">
+            {IV_REWARD_OPTIONS.map((opt) => (
+              <option key={opt.id} value={opt.id}>{opt.label}</option>
+            ))}
+          </optgroup>
+          <optgroup label="─── EV Boosts ───">
+            {EV_REWARD_OPTIONS.map((opt) => (
+              <option key={opt.id} value={opt.id}>{opt.label}</option>
             ))}
           </optgroup>
         </select>
