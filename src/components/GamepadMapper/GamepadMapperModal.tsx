@@ -167,7 +167,7 @@ export function GamepadMapperModal() {
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay" onClick={() => { setListening(null); setIsOpen(false); }}>
+    <div className="modal-overlay gpm-overlay" onClick={() => { setListening(null); setIsOpen(false); }}>
       <div className="modal-box gpm-modal" onClick={(e) => e.stopPropagation()}>
 
         {/* ── Fixed header ── */}
@@ -257,13 +257,28 @@ export function GamepadMapperModal() {
         </div>
 
         <style>{`
+          /* Overlay: leave 80px at the bottom for the mobile nav bar */
+          .gpm-overlay {
+            padding-bottom: 80px;
+          }
+          @media (max-width: 768px) {
+            .gpm-overlay {
+              align-items: flex-end;
+              padding-bottom: 80px;
+            }
+          }
           .gpm-modal {
             width: min(420px, 92vw);
-            /* Use dvh so the modal never extends behind the bottom nav */
-            max-height: min(85vh, calc(100dvh - 90px));
+            max-height: calc(100vh - 160px);
             display: flex;
             flex-direction: column;
             overflow: hidden;
+          }
+          @media (max-width: 768px) {
+            .gpm-modal {
+              max-height: calc(100vh - 180px);
+              border-radius: var(--radius-lg) var(--radius-lg) var(--radius-md) var(--radius-md);
+            }
           }
           .gpm-header {
             flex-shrink: 0;
@@ -364,11 +379,6 @@ export function GamepadMapperModal() {
             justify-content: flex-end;
             padding-top: var(--space-3);
             border-top: 1px solid var(--color-border-subtle);
-          }
-          @media (max-width: 768px) {
-            .gpm-modal {
-              max-height: calc(100dvh - 100px);
-            }
           }
         `}</style>
       </div>
