@@ -18,6 +18,8 @@ interface UiState {
   setActiveTab: (tab: ActiveTab) => void;
   isAccountOpen: boolean;
   setIsAccountOpen: (isOpen: boolean) => void;
+  isGamepadMapperOpen: boolean;
+  setIsGamepadMapperOpen: (isOpen: boolean) => void;
   theme: Theme;
   toggleTheme: () => void;
 }
@@ -37,6 +39,8 @@ export const useUiStore = create<UiState>()(
       setActiveTab: (tab) => set({ activeTab: tab }),
       isAccountOpen: false,
       setIsAccountOpen: (isOpen) => set({ isAccountOpen: isOpen }),
+      isGamepadMapperOpen: false,
+      setIsGamepadMapperOpen: (isOpen) => set({ isGamepadMapperOpen: isOpen }),
       theme: 'dark',
       toggleTheme: () =>
         set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),

@@ -1,11 +1,13 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
 import { EmulatorCanvas, GbaControls, RomLoader } from '../EmulatorView';
 import { RewardDisplay } from '../RewardPanel';
+import { GamepadStatus } from '../GamepadMapper';
 import { emulatorService } from '../../services/emulatorService';
 import { useEmulatorStore } from '../../store/emulatorStore';
 import { useAuthStore } from '../../store/authStore';
 import { downloadSave } from '../../services/syncService';
 import { SyncStatus } from '../PlayRoom/SyncStatus';
+import { useGamepad } from '../../hooks/useGamepad';
 
 export function PlayRoom() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -22,6 +24,8 @@ export function PlayRoom() {
   const setIsFullscreen = useEmulatorStore((s) => s.setIsFullscreen);
   const volume = useEmulatorStore((s) => s.volume);
   const setVolume = useEmulatorStore((s) => s.setVolume);
+
+  useGamepad();
 
   const isTouchDevice = useRef(
     typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
@@ -184,6 +188,7 @@ export function PlayRoom() {
             >
               {isFullscreen ? '✖ EXIT FS' : '🔲 FULLSCREEN'}
             </button>
+            <GamepadStatus />
           </div>
 
           {isFullscreen && isTouchDevice.current && isPortrait && (

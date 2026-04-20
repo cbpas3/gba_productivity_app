@@ -6,6 +6,7 @@ import { PlayRoom } from './PlayRoom';
 import { TutorialModal } from '../TutorialModal';
 import { TaskBoardModal, BulkImportModal } from '../TaskManager';
 import { AccountModal } from '../Auth';
+import { GamepadMapperModal } from '../GamepadMapper';
 import { useUiStore } from '../../store/uiStore';
 import { useTaskStore } from '../../store/taskStore';
 
@@ -79,6 +80,7 @@ export function AppLayout() {
       <TaskBoardModal />
       <BulkImportModal />
       <AccountModal />
+      <GamepadMapperModal />
 
       <style>{`
         .app-layout {
