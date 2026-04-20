@@ -14,10 +14,19 @@ export interface GamepadAxisMapping {
   gbaButton: GbaButton;
 }
 
+export type AppAction = 'turbo_a' | 'turbo_b' | 'speed_up';
+
+export interface GamepadActionMapping {
+  /** Gamepad button index that triggers this action (edge-triggered on press) */
+  buttonIndex: number;
+  action: AppAction;
+}
+
 export interface GamepadMapping {
   name: string;
   buttonMappings: GamepadButtonMapping[];
   axisMappings: GamepadAxisMapping[];
+  actionMappings: GamepadActionMapping[];
 }
 
 export const DEFAULT_GAMEPAD_MAPPING: GamepadMapping = {
@@ -40,8 +49,17 @@ export const DEFAULT_GAMEPAD_MAPPING: GamepadMapping = {
     { axisIndex: 1, direction: -1, gbaButton: 'Up' },
     { axisIndex: 1, direction:  1, gbaButton: 'Down' },
   ],
+  actionMappings: [],
 };
 
 export const GBA_BUTTONS: GbaButton[] = [
   'A', 'B', 'L', 'R', 'Start', 'Select', 'Up', 'Down', 'Left', 'Right',
 ];
+
+export const APP_ACTION_LABELS: Record<AppAction, string> = {
+  turbo_a: 'Turbo A',
+  turbo_b: 'Turbo B',
+  speed_up: 'Speed Cycle',
+};
+
+export const APP_ACTIONS: AppAction[] = ['turbo_a', 'turbo_b', 'speed_up'];

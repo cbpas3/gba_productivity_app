@@ -28,6 +28,18 @@ export const useGamepadStore = create<GamepadState>()(
     {
       name: 'gba-gamepad',
       partialize: (s) => ({ mapping: s.mapping }),
+      // Migrate persisted mappings that predate actionMappings field
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as { mapping?: Partial<GamepadMapping> };
+        return {
+          ...current,
+          mapping: {
+            ...DEFAULT_GAMEPAD_MAPPING,
+            ...(p.mapping ?? {}),
+            actionMappings: p.mapping?.actionMappings ?? [],
+          },
+        };
+      },
     }
   )
 );

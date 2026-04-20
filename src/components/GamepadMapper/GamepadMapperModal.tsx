@@ -3,9 +3,10 @@ import { useGamepadStore } from '../../store/gamepadStore';
 import { useUiStore } from '../../store/uiStore';
 import type { GbaButton } from '../../types/emulator';
 import type { GamepadMapping } from '../../types/gamepad';
-import { GBA_BUTTONS } from '../../types/gamepad';
+import { GBA_BUTTONS, APP_ACTIONS, APP_ACTION_LABELS } from '../../types/gamepad';
+import type { AppAction } from '../../types/gamepad';
 
-type ListeningFor = GbaButton | null;
+type ListeningTarget = { kind: 'gba'; gba: GbaButton } | { kind: 'action'; action: AppAction } | null;
 
 /** Plain-object snapshot of gamepad state — values are copied, not live references. */
 type GpSnapshot = {
@@ -22,7 +23,6 @@ function cloneSnapshot(): GpSnapshot | null {
   };
 }
 
-/** RAF loop that emits a deep-cloned snapshot each frame so prev/current diffs are reliable. */
 function useGamepadSnapshot() {
   const [snapshot, setSnapshot] = useState<GpSnapshot | null>(null);
   const rafRef = useRef<number | null>(null);
@@ -39,12 +39,17 @@ function useGamepadSnapshot() {
   return snapshot;
 }
 
-function getAssignedButton(mapping: GamepadMapping, gba: GbaButton): string {
+function getAssignedGba(mapping: GamepadMapping, gba: GbaButton): string {
   const bm = mapping.buttonMappings.find((m) => m.gbaButton === gba);
   if (bm) return `Btn ${bm.buttonIndex}`;
   const am = mapping.axisMappings.find((m) => m.gbaButton === gba);
   if (am) return `Axis ${am.axisIndex}${am.direction === -1 ? '−' : '+'}`;
   return '—';
+}
+
+function getAssignedAction(mapping: GamepadMapping, action: AppAction): string {
+  const am = mapping.actionMappings.find((m) => m.action === action);
+  return am ? `Btn ${am.buttonIndex}` : '—';
 }
 
 export function GamepadMapperModal() {
@@ -56,11 +61,10 @@ export function GamepadMapperModal() {
   const setMapping = useGamepadStore((s) => s.setMapping);
   const resetMapping = useGamepadStore((s) => s.resetMapping);
 
-  const [listening, setListening] = useState<ListeningFor>(null);
+  const [listening, setListening] = useState<ListeningTarget>(null);
   const [draftMapping, setDraftMapping] = useState<GamepadMapping>(mapping);
   const gp = useGamepadSnapshot();
 
-  // Sync draft when modal opens; clear listening state on close
   useEffect(() => {
     if (isOpen) {
       setDraftMapping(mapping);
@@ -68,7 +72,7 @@ export function GamepadMapperModal() {
     }
   }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Button/axis detection — runs every frame, compares deep-cloned snapshots
+  // Button/axis detection — compares deep-cloned snapshots frame-to-frame
   const prevSnap = useRef<GpSnapshot | null>(null);
   useEffect(() => {
     if (!listening || !gp) {
@@ -78,31 +82,37 @@ export function GamepadMapperModal() {
 
     const prev = prevSnap.current;
 
-    // Detect a newly pressed button (false → true transition)
+    // Detect newly pressed button (false → true transition)
     for (let i = 0; i < gp.buttons.length; i++) {
       const wasPressed = prev?.buttons[i]?.pressed ?? false;
       if (gp.buttons[i].pressed && !wasPressed) {
-        assignButton(listening, i);
+        if (listening.kind === 'gba') {
+          assignGbaButton(listening.gba, i);
+        } else {
+          assignAction(listening.action, i);
+        }
         setListening(null);
         break;
       }
     }
 
-    // Detect axis crossing threshold from neutral
-    for (let i = 0; i < gp.axes.length; i++) {
-      const val = gp.axes[i];
-      const prevVal = prev?.axes[i] ?? 0;
-      if (Math.abs(val) > 0.7 && Math.abs(prevVal) <= 0.7) {
-        assignAxis(listening, i, val < 0 ? -1 : 1);
-        setListening(null);
-        break;
+    // Detect axis threshold crossing — only for GBA buttons (not actions)
+    if (listening.kind === 'gba') {
+      for (let i = 0; i < gp.axes.length; i++) {
+        const val = gp.axes[i];
+        const prevVal = prev?.axes[i] ?? 0;
+        if (Math.abs(val) > 0.7 && Math.abs(prevVal) <= 0.7) {
+          assignGbaAxis(listening.gba, i, val < 0 ? -1 : 1);
+          setListening(null);
+          break;
+        }
       }
     }
 
     prevSnap.current = gp;
   });
 
-  function assignButton(gba: GbaButton, buttonIndex: number) {
+  function assignGbaButton(gba: GbaButton, buttonIndex: number) {
     setDraftMapping((prev) => ({
       ...prev,
       buttonMappings: prev.buttonMappings
@@ -112,13 +122,29 @@ export function GamepadMapperModal() {
     }));
   }
 
-  function assignAxis(gba: GbaButton, axisIndex: number, direction: -1 | 1) {
+  function assignGbaAxis(gba: GbaButton, axisIndex: number, direction: -1 | 1) {
     setDraftMapping((prev) => ({
       ...prev,
       axisMappings: prev.axisMappings
         .filter((m) => m.gbaButton !== gba)
         .concat({ axisIndex, direction, gbaButton: gba }),
       buttonMappings: prev.buttonMappings.filter((m) => m.gbaButton !== gba),
+    }));
+  }
+
+  function assignAction(action: AppAction, buttonIndex: number) {
+    setDraftMapping((prev) => ({
+      ...prev,
+      actionMappings: prev.actionMappings
+        .filter((m) => m.action !== action)
+        .concat({ buttonIndex, action }),
+    }));
+  }
+
+  function clearAction(action: AppAction) {
+    setDraftMapping((prev) => ({
+      ...prev,
+      actionMappings: prev.actionMappings.filter((m) => m.action !== action),
     }));
   }
 
@@ -129,8 +155,13 @@ export function GamepadMapperModal() {
 
   function handleReset() {
     resetMapping();
-    setDraftMapping(mapping); // will be overwritten by resetMapping's new value on next render
+    setDraftMapping({ ...useGamepadStore.getState().mapping });
     setListening(null);
+  }
+
+  function listeningLabel(): string {
+    if (!listening) return '';
+    return listening.kind === 'gba' ? listening.gba : APP_ACTION_LABELS[listening.action];
   }
 
   if (!isOpen) return null;
@@ -138,40 +169,84 @@ export function GamepadMapperModal() {
   return (
     <div className="modal-overlay" onClick={() => { setListening(null); setIsOpen(false); }}>
       <div className="modal-box gpm-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <span className="modal-title glow-text--cyan">🎮 CONTROLLER MAP</span>
-          <button className="btn btn--ghost modal-close" onClick={() => setIsOpen(false)}>✕</button>
-        </div>
 
-        <div className="gpm-status">
-          {isConnected
-            ? <span className="gpm-status--ok">● CONNECTED: {gamepadId?.slice(0, 40)}</span>
-            : <span className="gpm-status--off">● NO CONTROLLER DETECTED — Press any button on your controller to pair</span>
-          }
-        </div>
-
-        {listening && (
-          <div className="gpm-listening">
-            Press a button or move a stick on your controller to map <strong>{listening}</strong>
+        {/* ── Fixed header ── */}
+        <div className="gpm-header">
+          <div className="modal-header">
+            <span className="modal-title glow-text--cyan">🎮 CONTROLLER MAP</span>
+            <button className="btn btn--ghost modal-close" onClick={() => setIsOpen(false)}>✕</button>
           </div>
-        )}
 
-        <div className="gpm-grid">
-          {GBA_BUTTONS.map((gba) => (
-            <div key={gba} className={`gpm-row ${listening === gba ? 'gpm-row--listening' : ''}`}>
-              <span className="gpm-gba-label">{gba}</span>
-              <span className="gpm-assigned">{getAssignedButton(draftMapping, gba)}</span>
-              <button
-                className={`btn gpm-remap-btn ${listening === gba ? 'gpm-remap-btn--active' : ''}`}
-                onClick={() => setListening(listening === gba ? null : gba)}
-                disabled={!isConnected}
-              >
-                {listening === gba ? 'CANCEL' : 'REMAP'}
-              </button>
+          <div className="gpm-status">
+            {isConnected
+              ? <span className="gpm-status--ok">● CONNECTED: {gamepadId?.slice(0, 40)}</span>
+              : <span className="gpm-status--off">● NO CONTROLLER DETECTED — press any button to pair</span>
+            }
+          </div>
+
+          {listening && (
+            <div className="gpm-listening">
+              Press a button{listening.kind === 'gba' ? ' or move a stick' : ''} to map <strong>{listeningLabel()}</strong>
             </div>
-          ))}
+          )}
         </div>
 
+        {/* ── Scrollable body ── */}
+        <div className="gpm-body">
+          <p className="gpm-section-label">GBA BUTTONS</p>
+          <div className="gpm-grid">
+            {GBA_BUTTONS.map((gba) => {
+              const isListening = listening?.kind === 'gba' && listening.gba === gba;
+              return (
+                <div key={gba} className={`gpm-row ${isListening ? 'gpm-row--listening' : ''}`}>
+                  <span className="gpm-gba-label">{gba}</span>
+                  <span className="gpm-assigned">{getAssignedGba(draftMapping, gba)}</span>
+                  <button
+                    className={`btn gpm-remap-btn ${isListening ? 'gpm-remap-btn--active' : ''}`}
+                    onClick={() => setListening(isListening ? null : { kind: 'gba', gba })}
+                    disabled={!isConnected}
+                  >
+                    {isListening ? 'CANCEL' : 'REMAP'}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+
+          <p className="gpm-section-label" style={{ marginTop: '8px' }}>APP ACTIONS</p>
+          <div className="gpm-grid">
+            {APP_ACTIONS.map((action) => {
+              const isListening = listening?.kind === 'action' && listening.action === action;
+              const assigned = getAssignedAction(draftMapping, action);
+              return (
+                <div key={action} className={`gpm-row ${isListening ? 'gpm-row--listening' : ''}`}>
+                  <span className="gpm-gba-label">{APP_ACTION_LABELS[action]}</span>
+                  <span className="gpm-assigned">{assigned}</span>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    {assigned !== '—' && (
+                      <button
+                        className="btn gpm-remap-btn"
+                        onClick={() => clearAction(action)}
+                        title="Clear"
+                      >
+                        ✕
+                      </button>
+                    )}
+                    <button
+                      className={`btn gpm-remap-btn ${isListening ? 'gpm-remap-btn--active' : ''}`}
+                      onClick={() => setListening(isListening ? null : { kind: 'action', action })}
+                      disabled={!isConnected}
+                    >
+                      {isListening ? 'CANCEL' : 'REMAP'}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── Sticky footer ── */}
         <div className="gpm-actions">
           <button className="btn btn--secondary" onClick={handleReset}>
             RESET DEFAULTS
@@ -184,11 +259,33 @@ export function GamepadMapperModal() {
         <style>{`
           .gpm-modal {
             width: min(420px, 92vw);
-            max-height: 85vh;
-            overflow-y: auto;
+            /* Use dvh so the modal never extends behind the bottom nav */
+            max-height: min(85vh, calc(100dvh - 90px));
             display: flex;
             flex-direction: column;
-            gap: var(--space-3);
+            overflow: hidden;
+          }
+          .gpm-header {
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-2);
+          }
+          .gpm-body {
+            flex: 1;
+            overflow-y: auto;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding: var(--space-1) 0;
+          }
+          .gpm-section-label {
+            font-family: var(--font-pixel);
+            font-size: 0.35rem;
+            color: var(--color-text-muted);
+            letter-spacing: 0.1em;
+            margin: 0 0 2px;
           }
           .gpm-status {
             font-family: var(--font-pixel);
@@ -217,7 +314,7 @@ export function GamepadMapperModal() {
           }
           .gpm-row {
             display: grid;
-            grid-template-columns: 5rem 1fr auto;
+            grid-template-columns: 6rem 1fr auto;
             align-items: center;
             gap: var(--space-2);
             padding: var(--space-1) var(--space-2);
@@ -231,9 +328,9 @@ export function GamepadMapperModal() {
           }
           .gpm-gba-label {
             font-family: var(--font-pixel);
-            font-size: 0.45rem;
+            font-size: 0.4rem;
             color: var(--color-accent-cyan);
-            letter-spacing: 0.06em;
+            letter-spacing: 0.04em;
           }
           .gpm-assigned {
             font-family: var(--font-pixel);
@@ -242,13 +339,14 @@ export function GamepadMapperModal() {
           }
           .gpm-remap-btn {
             font-family: var(--font-pixel);
-            font-size: 0.38rem;
+            font-size: 0.35rem;
             padding: 3px 8px;
             border-radius: var(--radius-sm);
             background: var(--color-surface-body);
             border: 1px solid var(--color-border-subtle);
             color: var(--color-text-muted);
             cursor: pointer;
+            white-space: nowrap;
           }
           .gpm-remap-btn:disabled {
             opacity: 0.4;
@@ -260,11 +358,17 @@ export function GamepadMapperModal() {
             color: var(--color-accent-yellow);
           }
           .gpm-actions {
+            flex-shrink: 0;
             display: flex;
             gap: var(--space-2);
             justify-content: flex-end;
-            padding-top: var(--space-2);
+            padding-top: var(--space-3);
             border-top: 1px solid var(--color-border-subtle);
+          }
+          @media (max-width: 768px) {
+            .gpm-modal {
+              max-height: calc(100dvh - 100px);
+            }
           }
         `}</style>
       </div>
