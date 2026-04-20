@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useGamepadStore } from '../store/gamepadStore';
+import { useUiStore } from '../store/uiStore';
 import { emulatorService } from '../services/emulatorService';
 import type { GbaButton } from '../types/emulator';
 
@@ -18,6 +19,14 @@ export function useGamepad() {
       const gp = gamepads.find((g) => g !== null) ?? null;
 
       if (!gp) {
+        rafRef.current = requestAnimationFrame(poll);
+        return;
+      }
+
+      // Suppress all gamepad input to the emulator while the mapper modal is open
+      if (useUiStore.getState().isGamepadMapperOpen) {
+        for (const btn of pressedRef.current) emulatorService.releaseButton(btn);
+        pressedRef.current = new Set();
         rafRef.current = requestAnimationFrame(poll);
         return;
       }

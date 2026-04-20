@@ -7,14 +7,29 @@ import { GBA_BUTTONS } from '../../types/gamepad';
 
 type ListeningFor = GbaButton | null;
 
+/** Plain-object snapshot of gamepad state — values are copied, not live references. */
+type GpSnapshot = {
+  buttons: { pressed: boolean; value: number }[];
+  axes: number[];
+};
+
+function cloneSnapshot(): GpSnapshot | null {
+  const gp = navigator.getGamepads().find((g) => g !== null) ?? null;
+  if (!gp) return null;
+  return {
+    buttons: Array.from(gp.buttons).map((b) => ({ pressed: b.pressed, value: b.value })),
+    axes: Array.from(gp.axes),
+  };
+}
+
+/** RAF loop that emits a deep-cloned snapshot each frame so prev/current diffs are reliable. */
 function useGamepadSnapshot() {
-  const [snapshot, setSnapshot] = useState<Gamepad | null>(null);
+  const [snapshot, setSnapshot] = useState<GpSnapshot | null>(null);
   const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
     function poll() {
-      const gp = navigator.getGamepads().find((g) => g !== null) ?? null;
-      setSnapshot(gp ? { ...gp, buttons: [...gp.buttons], axes: [...gp.axes] } as unknown as Gamepad : null);
+      setSnapshot(cloneSnapshot());
       rafRef.current = requestAnimationFrame(poll);
     }
     rafRef.current = requestAnimationFrame(poll);
@@ -45,19 +60,25 @@ export function GamepadMapperModal() {
   const [draftMapping, setDraftMapping] = useState<GamepadMapping>(mapping);
   const gp = useGamepadSnapshot();
 
-  // Sync draft when modal opens
+  // Sync draft when modal opens; clear listening state on close
   useEffect(() => {
-    if (isOpen) setDraftMapping(mapping);
-  }, [isOpen, mapping]);
+    if (isOpen) {
+      setDraftMapping(mapping);
+      setListening(null);
+    }
+  }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Detect input while listening
-  const prevGp = useRef<Gamepad | null>(null);
+  // Button/axis detection — runs every frame, compares deep-cloned snapshots
+  const prevSnap = useRef<GpSnapshot | null>(null);
   useEffect(() => {
-    if (!listening || !gp) return;
+    if (!listening || !gp) {
+      prevSnap.current = gp;
+      return;
+    }
 
-    const prev = prevGp.current;
+    const prev = prevSnap.current;
 
-    // Detect newly pressed button
+    // Detect a newly pressed button (false → true transition)
     for (let i = 0; i < gp.buttons.length; i++) {
       const wasPressed = prev?.buttons[i]?.pressed ?? false;
       if (gp.buttons[i].pressed && !wasPressed) {
@@ -67,39 +88,38 @@ export function GamepadMapperModal() {
       }
     }
 
-    // Detect axis exceeding threshold (only on change from neutral)
+    // Detect axis crossing threshold from neutral
     for (let i = 0; i < gp.axes.length; i++) {
       const val = gp.axes[i];
       const prevVal = prev?.axes[i] ?? 0;
       if (Math.abs(val) > 0.7 && Math.abs(prevVal) <= 0.7) {
-        const dir = val < 0 ? -1 : 1;
-        assignAxis(listening, i, dir as -1 | 1);
+        assignAxis(listening, i, val < 0 ? -1 : 1);
         setListening(null);
         break;
       }
     }
 
-    prevGp.current = gp;
+    prevSnap.current = gp;
   });
 
   function assignButton(gba: GbaButton, buttonIndex: number) {
-    setDraftMapping((prev) => {
-      const buttonMappings = prev.buttonMappings
+    setDraftMapping((prev) => ({
+      ...prev,
+      buttonMappings: prev.buttonMappings
         .filter((m) => m.gbaButton !== gba)
-        .concat({ buttonIndex, gbaButton: gba });
-      const axisMappings = prev.axisMappings.filter((m) => m.gbaButton !== gba);
-      return { ...prev, buttonMappings, axisMappings };
-    });
+        .concat({ buttonIndex, gbaButton: gba }),
+      axisMappings: prev.axisMappings.filter((m) => m.gbaButton !== gba),
+    }));
   }
 
   function assignAxis(gba: GbaButton, axisIndex: number, direction: -1 | 1) {
-    setDraftMapping((prev) => {
-      const axisMappings = prev.axisMappings
-        .filter((m) => !(m.gbaButton === gba))
-        .concat({ axisIndex, direction, gbaButton: gba });
-      const buttonMappings = prev.buttonMappings.filter((m) => m.gbaButton !== gba);
-      return { ...prev, buttonMappings, axisMappings };
-    });
+    setDraftMapping((prev) => ({
+      ...prev,
+      axisMappings: prev.axisMappings
+        .filter((m) => m.gbaButton !== gba)
+        .concat({ axisIndex, direction, gbaButton: gba }),
+      buttonMappings: prev.buttonMappings.filter((m) => m.gbaButton !== gba),
+    }));
   }
 
   function handleSave() {
@@ -109,6 +129,7 @@ export function GamepadMapperModal() {
 
   function handleReset() {
     resetMapping();
+    setDraftMapping(mapping); // will be overwritten by resetMapping's new value on next render
     setListening(null);
   }
 
