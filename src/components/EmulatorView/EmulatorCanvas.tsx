@@ -1,14 +1,20 @@
 import { forwardRef } from 'react';
 import { useEmulatorStore } from '../../store/emulatorStore';
+import { useUiStore } from '../../store/uiStore';
 
 export const EmulatorCanvas = forwardRef<HTMLCanvasElement>((_, ref) => {
-  const romLoaded = useEmulatorStore((s) => s.romLoaded);
-  const status    = useEmulatorStore((s) => s.status);
-  const gameName  = useEmulatorStore((s) => s.gameName);
+  const romLoaded    = useEmulatorStore((s) => s.romLoaded);
+  const status       = useEmulatorStore((s) => s.status);
+  const gameName     = useEmulatorStore((s) => s.gameName);
+  const isFullscreen = useEmulatorStore((s) => s.isFullscreen);
+  const offset       = useUiStore((s) => s.screenVerticalOffset);
 
   return (
     <div className="emulator-canvas">
-      <div className="emulator-canvas__screen-wrap">
+      <div
+        className="emulator-canvas__screen-wrap"
+        style={isFullscreen && offset !== 0 ? { transform: `translateY(${offset}%)` } : undefined}
+      >
         <canvas
           ref={ref}
           id="emulator-canvas"

@@ -1,5 +1,5 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
-import { EmulatorCanvas, GbaControls, RomLoader } from '../EmulatorView';
+import { EmulatorCanvas, GbaControls, RomLoader, ScreenPositionControls } from '../EmulatorView';
 import { RewardDisplay } from '../RewardPanel';
 import { GamepadStatus } from '../GamepadMapper';
 import { emulatorService } from '../../services/emulatorService';
@@ -191,6 +191,7 @@ export function PlayRoom() {
             <GamepadStatus />
           </div>
 
+          <ScreenPositionControls isPortrait={isPortrait} />
           <GbaControls />
           <RomLoader />
         </div>

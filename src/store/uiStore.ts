@@ -20,6 +20,8 @@ interface UiState {
   setIsAccountOpen: (isOpen: boolean) => void;
   isGamepadMapperOpen: boolean;
   setIsGamepadMapperOpen: (isOpen: boolean) => void;
+  screenVerticalOffset: number;
+  setScreenVerticalOffset: (offset: number) => void;
   theme: Theme;
   toggleTheme: () => void;
 }
@@ -41,6 +43,8 @@ export const useUiStore = create<UiState>()(
       setIsAccountOpen: (isOpen) => set({ isAccountOpen: isOpen }),
       isGamepadMapperOpen: false,
       setIsGamepadMapperOpen: (isOpen) => set({ isGamepadMapperOpen: isOpen }),
+      screenVerticalOffset: 0,
+      setScreenVerticalOffset: (offset) => set({ screenVerticalOffset: Math.max(-40, Math.min(40, offset)) }),
       theme: 'dark',
       toggleTheme: () =>
         set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
