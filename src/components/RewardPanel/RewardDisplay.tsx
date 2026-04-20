@@ -5,8 +5,8 @@ import { findItemOption } from "../../lib/gen3/itemRewards";
 
 const REWARD_ICONS: Record<RewardType, string> = {
   give_item: "*",
-  add_experience: "E",
-  add_experience_percent: "%",
+  add_experience: "+",
+  add_experience_percent: "+",
   boost_evs: "V",
   set_ivs: "!",
   heal_pokemon: "+",
@@ -15,8 +15,8 @@ const REWARD_ICONS: Record<RewardType, string> = {
 
 const REWARD_LABELS: Record<RewardType, string> = {
   give_item: "Item",
-  add_experience: "+EXP",
-  add_experience_percent: "%EXP",
+  add_experience: "EXP",
+  add_experience_percent: "EXP",
   boost_evs: "EV Boost",
   set_ivs: "Perfect IVs",
   heal_pokemon: "Full Heal",
