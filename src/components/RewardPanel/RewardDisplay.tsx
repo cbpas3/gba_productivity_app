@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import type { Reward, RewardType } from "../../types/reward";
 import { useRewardStore } from "../../store/rewardStore";
 import { RewardLog } from "./RewardLog";
@@ -41,10 +42,38 @@ export function RewardDisplay() {
   const pendingRewards = useRewardStore((s) => s.pendingRewards);
   const rewardHistory = useRewardStore((s) => s.rewardHistory);
   const isClaiming = useRewardStore((s) => s.isClaiming);
-  const claimAll = useRewardStore((s) => s.claimAll);
+  const claimSelected = useRewardStore((s) => s.claimSelected);
 
   const pendingCount = pendingRewards.length;
   const totalApplied = rewardHistory.filter((r) => r.success).length;
+
+  // Selection: set of indices into pendingRewards; default all selected
+  const [selected, setSelected] = useState<Set<number>>(() => new Set(pendingRewards.map((_, i) => i)));
+
+  // When new rewards arrive, auto-select them
+  useEffect(() => {
+    setSelected(new Set(pendingRewards.map((_, i) => i)));
+  }, [pendingRewards.length]);
+
+  function toggleOne(i: number) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i); else next.add(i);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    if (selected.size === pendingCount) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(pendingRewards.map((_, i) => i)));
+    }
+  }
+
+  function handleClaim() {
+    claimSelected([...selected].sort((a, b) => a - b));
+  }
 
   return (
     <div className="reward-display">
@@ -78,28 +107,41 @@ export function RewardDisplay() {
 
       {pendingCount > 0 && (
         <div className="reward-display__pending-list">
-          <p className="reward-display__pending-title">QUEUED REWARDS:</p>
-          {pendingRewards.slice(0, 5).map((reward, i) => {
-            const item = findItemOption(reward);
-            return (
-              <div key={i} className="reward-display__pending-item">
-                <span className="reward-display__pending-icon">
-                  {REWARD_ICONS[reward.type]}
-                </span>
-                <span className="reward-display__pending-label">
-                  {item ? item.label : `${getRewardValueShort(reward)}${REWARD_LABELS[reward.type]}`}
-                </span>
-                <span className="reward-display__pending-slot">
-                  Slot {reward.targetSlot + 1}
-                </span>
-              </div>
-            );
-          })}
-          {pendingCount > 5 && (
-            <p className="reward-display__pending-more">
-              +{pendingCount - 5} more...
-            </p>
-          )}
+          <div className="reward-display__pending-header">
+            <p className="reward-display__pending-title">QUEUED REWARDS:</p>
+            <button className="btn btn--ghost reward-display__select-all-btn" onClick={toggleAll}>
+              {selected.size === pendingCount ? "DESELECT ALL" : "SELECT ALL"}
+            </button>
+          </div>
+
+          <div className="reward-display__pending-scroll">
+            {pendingRewards.map((reward, i) => {
+              const item = findItemOption(reward);
+              const isChecked = selected.has(i);
+              return (
+                <div
+                  key={i}
+                  className={`reward-display__pending-item ${isChecked ? "reward-display__pending-item--checked" : "reward-display__pending-item--unchecked"}`}
+                  onClick={() => toggleOne(i)}
+                  role="checkbox"
+                  aria-checked={isChecked}
+                >
+                  <span className="reward-display__pending-check">
+                    {isChecked ? "▣" : "▢"}
+                  </span>
+                  <span className="reward-display__pending-icon">
+                    {REWARD_ICONS[reward.type]}
+                  </span>
+                  <span className="reward-display__pending-label">
+                    {item ? item.label : `${getRewardValueShort(reward)}${REWARD_LABELS[reward.type]}`}
+                  </span>
+                  <span className="reward-display__pending-slot">
+                    Slot {reward.targetSlot + 1}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
 
           <div className="reward-display__claim-section">
             <p className="reward-display__claim-warning">
@@ -107,12 +149,12 @@ export function RewardDisplay() {
             </p>
             <button
               className="btn reward-display__claim-btn"
-              onClick={claimAll}
-              disabled={isClaiming}
+              onClick={handleClaim}
+              disabled={isClaiming || selected.size === 0}
             >
               {isClaiming
                 ? "APPLYING..."
-                : `CLAIM ${pendingCount} REWARD${pendingCount !== 1 ? "S" : ""}`}
+                : `CLAIM ${selected.size} / ${pendingCount} REWARD${selected.size !== 1 ? "S" : ""}`}
             </button>
           </div>
         </div>
@@ -199,17 +241,60 @@ export function RewardDisplay() {
           flex-direction: column;
           gap: var(--space-1);
         }
+        .reward-display__pending-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 4px;
+        }
         .reward-display__pending-title {
           font-family: var(--font-pixel);
           font-size: 0.4rem;
           color: var(--color-accent-yellow);
           letter-spacing: 0.08em;
-          margin-bottom: 4px;
+        }
+        .reward-display__select-all-btn {
+          font-family: var(--font-pixel);
+          font-size: 0.33rem;
+          padding: 2px 6px;
+          color: var(--color-text-muted);
+          border-color: var(--color-border-subtle);
+        }
+        .reward-display__pending-scroll {
+          display: flex;
+          flex-direction: column;
+          gap: 3px;
+          max-height: 160px;
+          overflow-y: auto;
         }
         .reward-display__pending-item {
           display: flex;
           align-items: center;
           gap: var(--space-2);
+          padding: 3px 4px;
+          border-radius: var(--radius-sm);
+          cursor: pointer;
+          user-select: none;
+          border: 1px solid transparent;
+          transition: background 0.1s;
+        }
+        .reward-display__pending-item--checked {
+          background: rgba(255, 214, 0, 0.08);
+          border-color: rgba(255, 214, 0, 0.25);
+        }
+        .reward-display__pending-item--unchecked {
+          opacity: 0.45;
+        }
+        .reward-display__pending-item:hover {
+          opacity: 1;
+          background: rgba(255, 214, 0, 0.12);
+        }
+        .reward-display__pending-check {
+          font-family: var(--font-pixel);
+          font-size: 0.5rem;
+          color: var(--color-accent-yellow);
+          width: 12px;
+          flex-shrink: 0;
         }
         .reward-display__pending-icon {
           font-family: var(--font-pixel);
@@ -227,13 +312,6 @@ export function RewardDisplay() {
           font-family: var(--font-pixel);
           font-size: 0.35rem;
           color: var(--color-text-muted);
-        }
-        .reward-display__pending-more {
-          font-family: var(--font-pixel);
-          font-size: 0.35rem;
-          color: var(--color-text-muted);
-          text-align: center;
-          margin-top: 4px;
         }
         .reward-display__claim-section {
           display: flex;

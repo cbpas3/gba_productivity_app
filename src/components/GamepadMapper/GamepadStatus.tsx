@@ -6,9 +6,7 @@ export function GamepadStatus() {
   const gamepadId = useGamepadStore((s) => s.gamepadId);
   const setIsGamepadMapperOpen = useUiStore((s) => s.setIsGamepadMapperOpen);
 
-  const label = isConnected
-    ? `🎮 ${gamepadId ? gamepadId.slice(0, 20) : 'CONTROLLER'}`
-    : '🎮 NO PAD';
+  const label = isConnected ? '🎮 PAD ●' : '🎮 PAD';
 
   return (
     <button

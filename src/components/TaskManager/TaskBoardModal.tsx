@@ -33,7 +33,7 @@ export function TaskBoardModal() {
 
         <hr className="pixel-divider" />
 
-        <TaskForm onSubmitSuccess={() => setIsOpen(false)} />
+        <TaskForm />
       </div>
 
       <style>{`

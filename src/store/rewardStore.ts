@@ -17,6 +17,7 @@ interface RewardState {
   isClaiming: boolean;
   addPending: (reward: Reward) => void;
   claimAll: () => void;
+  claimSelected: (indices: number[]) => void;
   markBatchApplied: (rewards: Reward[], success: boolean) => void;
   clearHistory: () => void;
   /** Replace pending rewards with data pulled from the cloud. */
@@ -57,6 +58,15 @@ export const useRewardStore = create<RewardState>()(
         eventBus.emit('rewards:claim', { rewards: [...pendingRewards] });
       },
 
+      claimSelected: (indices) => {
+        const { pendingRewards, isClaiming } = get();
+        if (indices.length === 0 || isClaiming) return;
+        const selected = indices.map((i) => pendingRewards[i]).filter(Boolean) as Reward[];
+        if (selected.length === 0) return;
+        set({ isClaiming: true });
+        eventBus.emit('rewards:claim', { rewards: selected });
+      },
+
       markBatchApplied: (rewards, success) => {
         const now = Date.now();
         const entries: RewardHistoryEntry[] = rewards.map((reward) => ({
@@ -65,16 +75,29 @@ export const useRewardStore = create<RewardState>()(
           success,
         }));
 
-        set((state) => ({
-          pendingRewards: [],
-          isClaiming: false,
-          rewardHistory: [...entries, ...state.rewardHistory].slice(0, MAX_HISTORY),
-        }));
+        set((state) => {
+          // Remove only the claimed rewards from pending (first-match per duplicate)
+          const remaining = [...state.pendingRewards];
+          for (const claimed of rewards) {
+            const idx = remaining.findIndex(
+              (r) =>
+                r.type === claimed.type &&
+                r.targetSlot === claimed.targetSlot &&
+                JSON.stringify(r.payload) === JSON.stringify(claimed.payload),
+            );
+            if (idx !== -1) remaining.splice(idx, 1);
+          }
+          return {
+            pendingRewards: remaining,
+            isClaiming: false,
+            rewardHistory: [...entries, ...state.rewardHistory].slice(0, MAX_HISTORY),
+          };
+        });
 
-        // Clear pending pool in the cloud now that rewards are applied.
+        // Sync updated pending pool to cloud.
         const uid = getUserId();
         if (uid) {
-          syncService.pushProfile(uid, []).catch(console.error);
+          syncService.pushProfile(uid, get().pendingRewards).catch(console.error);
         }
       },
 

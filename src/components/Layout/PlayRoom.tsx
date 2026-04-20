@@ -191,13 +191,6 @@ export function PlayRoom() {
             <GamepadStatus />
           </div>
 
-          {isFullscreen && isTouchDevice.current && isPortrait && (
-            <div className="play-room__rotate-hint" aria-live="polite" aria-label="Rotate your device for best experience">
-              <span className="play-room__rotate-icon">↻</span>
-              <span className="play-room__rotate-text">ROTATE DEVICE</span>
-            </div>
-          )}
-
           <GbaControls />
           <RomLoader />
         </div>
@@ -281,6 +274,7 @@ export function PlayRoom() {
         /* ── Emulator toolbar ── */
         .emu-toolbar {
           display: flex;
+          flex-wrap: wrap;
           gap: var(--space-2);
           width: 100%;
           justify-content: center;
@@ -379,46 +373,6 @@ export function PlayRoom() {
           width: auto;
         }
 
-        /* Rotate hint */
-        .play-room__rotate-hint {
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          z-index: 200;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 8px;
-          pointer-events: none;
-          animation: rotate-hint-fade 1.8s ease-in-out infinite;
-        }
-
-        .play-room__rotate-icon {
-          font-size: 2.5rem;
-          color: rgba(255, 255, 255, 0.85);
-          display: block;
-          animation: rotate-spin 2s linear infinite;
-        }
-
-        .play-room__rotate-text {
-          font-family: var(--font-pixel);
-          font-size: 0.45rem;
-          color: rgba(255, 255, 255, 0.85);
-          letter-spacing: 0.12em;
-          text-shadow: 0 0 8px rgba(0, 229, 255, 0.6);
-        }
-
-        @keyframes rotate-spin {
-          from { transform: rotate(0deg); }
-          to   { transform: rotate(360deg); }
-        }
-
-        @keyframes rotate-hint-fade {
-          0%, 100% { opacity: 0.5; }
-          50%       { opacity: 1; }
-        }
-
         /* Touch-device fullscreen controls */
         @media (pointer: fine) {
           .play-room__emulator-inner.is-fullscreen .gba-controls {
@@ -481,6 +435,25 @@ export function PlayRoom() {
 
           .play-room__emulator-wrap.card {
             padding: var(--space-2);
+          }
+        }
+
+        /* Portrait mobile: push canvas to top, header below */
+        @media (max-width: 768px) and (orientation: portrait) {
+          .play-room__emulator-wrap.card {
+            padding: 0;
+            gap: 0;
+          }
+          .play-room__emulator-wrap .play-room__emu-header {
+            order: 3;
+            padding: var(--space-2) var(--space-3);
+          }
+          .play-room__emulator-wrap > hr.pixel-divider {
+            order: 4;
+            margin: 0;
+          }
+          .play-room__emulator-inner {
+            order: 1;
           }
         }
       `}</style>
