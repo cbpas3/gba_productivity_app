@@ -38,7 +38,7 @@ export function Header() {
         {/* Title block */}
         <div className="app-header__title-group">
           <h1 className="app-header__title glow-text--cyan">
-            Game Productivity App
+            Productivity Boy
           </h1>
           <p className="app-header__tagline">
             Complete quests. Earn rewards. Level up your party.

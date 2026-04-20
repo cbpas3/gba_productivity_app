@@ -1,6 +1,6 @@
 {
-  "name": "Game Productivity App",
-  "short_name": "Game Prod",
+  "name": "Productivity Boy",
+  "short_name": "Prod Boy",
   "description": "Complete real-world tasks and earn in-game rewards in a browser-based Game Boy Advance emulator",
   "start_url": "/",
   "display": "standalone",
