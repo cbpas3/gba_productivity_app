@@ -1,11 +1,13 @@
 # Game Productivity App — Knowledge Base
 
 > **Purpose**: Complete project context for LLM handoff. Covers architecture, Gen III save format, Supabase cloud sync, active bugs, and session history.
-> **Last updated**: Session 24 (global font-size readability pass)
+> **Last updated**: Session 30 (gamepad support, screen position, selective rewards, multi-speed, turbo, D-pad thumbstick, rebranding, custom item rewards, repeatable tasks)
 
 ---
 
 ## 1. Project Overview
+
+**App name**: **Productivity Boy** (rebranded from "Game Productivity App"). localStorage keys intentionally kept as `gba-*` to avoid wiping existing user data.
 
 A **Vite + React + TypeScript** progressive web app (PWA) that embeds the mGBA Game Boy Advance emulator (via WASM) and grants real in-game rewards when the user completes productivity tasks. Installable on iOS via Safari "Add to Home Screen" and on Android/desktop via browser install prompt.
 
@@ -31,22 +33,29 @@ src/
       index.ts
     ErrorBoundary.tsx           # React error boundary — catches render errors, shows recovery UI
     EmulatorView/              # GBA canvas + ROM/save loader UI (with file size validation)
+      ScreenPositionControls.tsx  # Floating ▲/◎/▼ overlay to reposition screen in fullscreen portrait+controller mode
+    GamepadMapper/             # Web Gamepad API integration
+      GamepadMapperModal.tsx   # Per-button remapping UI (GBA buttons + app actions); modal with always-visible footer
+      GamepadStatus.tsx        # Toolbar button showing controller connection state; opens mapper
+      index.ts                 # Barrel export
     Layout/
       AppLayout.tsx            # Shell: Header + NavBar + tab views (tasks/play) + modals
       Header.tsx               # Title, emulator status dot, game name, desktop “+ ADD QUEST” button
       NavBar.tsx               # Tab bar (Tasks / Play / Theme toggle / Account); fixed bottom on mobile, sticky top on desktop
-      PlayRoom.tsx             # Emulator panel + RewardDisplay; volume slider, restart, fullscreen, fast-forward toolbar
+      PlayRoom.tsx             # Emulator panel + RewardDisplay; volume slider, restart, fullscreen, multi-speed toolbar
       TaskDashboard.tsx        # RewardPoolBar + inline KanbanBoard (5 columns, drag-and-drop) + “+ ADD QUEST” button
     PlayRoom/
       SyncStatus.tsx           # Manual sync button + last-synced label (only shown when logged in)
-    RewardPanel/               # Displays pending rewards + "CLAIM REWARDS" button
+    RewardPanel/               # Displays pending rewards with per-reward selection + “CLAIM X REWARDS” button
     TaskManager/               # TaskList.tsx + TaskItem.tsx + TaskBoardModal (Add Quest form modal) + BulkImportModal
     TutorialModal.tsx          # First-time onboarding overlay
   hooks/
     useKeyboardInput.ts        # Global GBA keyboard passthrough
+    useGamepad.ts              # RAF polling loop for Web Gamepad API; skips emulator input when mapper is open
     useRewards.ts              # Subscribes to rewards:claimed events
   lib/
     gen3/                      # ALL Gen III save-file crypto lives here
+      itemRewards.ts           # Selectable custom reward options (ITEM_REWARD_OPTIONS, IV_REWARD_OPTIONS, EV_REWARD_OPTIONS, ALL_REWARD_OPTIONS, findItemOption)
       saveFileParser.ts        # Parse/write 128KB save, detect game variant
       pokemonParser.ts         # Read/write 100-byte Pokemon structs
       crypto.ts                # XOR encrypt/decrypt (PV ^ OTID key)
@@ -69,23 +78,25 @@ src/
   store/
     authStore.ts               # Zustand auth store: user, session, initialize(), signIn(), signUp(), signOut()
     eventBus.ts                # Typed event bus (EventMap)
-    emulatorStore.ts           # Zustand emulator status + isFastForward + isFullscreen + volume + pushSave/pullSave/isSyncing
-    rewardStore.ts             # Zustand reward queue/history (persisted as 'gba-rewards'), claimAll(), isClaiming, hydratePendingRewards()
+    emulatorStore.ts           # Zustand emulator status + gameSpeed(1-5) + isTurboA/B + isFullscreen + volume + pushSave/pullSave/isSyncing
+    gamepadStore.ts            # Zustand gamepad state (persisted as 'gba-gamepad'): mapping (ButtonMapping+AxisMapping+ActionMapping)
+    rewardStore.ts             # Zustand reward queue/history (persisted as 'gba-rewards'), claimAll(), claimSelected(), isClaiming
     taskStore.ts               # Zustand tasks store (persisted as 'gba-tasks'), addTask/completeTask/deleteTask/bulkAddTasks/hydrateTasks()
-    uiStore.ts                 # Zustand UI prefs (persisted as 'gba-ui-prefs'): activeTab, modals, alignment, account panel, theme
+    uiStore.ts                 # Zustand UI prefs (persisted as 'gba-ui-prefs'): activeTab, modals, alignment, account, theme, screenVerticalOffset
   types/
     emulator.ts                # IEmulatorService interface, GbaButton, EmulatorStatus
     events.ts                  # EventMap interface
+    gamepad.ts                 # GamepadMapping, GamepadButtonMapping, GamepadAxisMapping, GamepadActionMapping, AppAction, DEFAULT_GAMEPAD_MAPPING
     pokemon.ts                 # Pokemon, GrowthSubstructure, AttacksSubstructure, etc.
     reward.ts                  # Reward, RewardType, RewardPayload, EvStat, IVSet
     savefile.ts                # SaveFile, SaveSection, GameVariant, PartyLocation
-    task.ts                    # Task, TaskPriority, TaskStatus
+    task.ts                    # Task, TaskPriority, TaskStatus, recurrence includes 'repeatable'
   utils/
     crossOriginCheck.ts        # assertCrossOriginIsolated (needed for SharedArrayBuffer/WASM)
 supabase/
   schema.sql                   # Full Supabase schema: tasks table, profiles table, saves storage bucket + RLS
 public/
-  manifest.webmanifest         # PWA manifest (name: "Game Productivity App", icons, display: standalone)
+  manifest.webmanifest         # PWA manifest (name: "Productivity Boy", short_name: "Prod Boy", icons, display: standalone)
   sw.js                        # Service worker: precache app shell, cache-first assets, network-first navigation
   icon.svg                     # GBA-themed SVG icon (pixel checkmark, D-pad, A/B, "EXP+")
   icon-192.png                 # 192×192 PNG icon for Android/manifest
@@ -159,15 +170,15 @@ The `EXP_PERCENT` lookup in `taskStore.ts` maps `TaskPriority → number`. The `
 
 > **Note**: After `add_experience`, `add_experience_percent`, `set_ivs`, or `boost_evs` rewards, `PokemonCryptoService.applyReward` calls `recalculatePartyStats()` to update the party-cached stat block (level, maxHp, attack, defense, speed, spAttack, spDefense) using the Gen III stat formula. This is required because the game reads stats from the cached block, not from the encrypted substructure.
 
-### Legacy reward types (still supported in code, not currently used by task system)
-| Type | Effect |
-|---|---|
-| `heal_pokemon` | statusCondition = 0, currentHp = maxHp |
-| `add_experience` | Flat +N EXP (capped at 0x00FFFFFF) |
-| `give_item` | Sets held item to itemId |
-| `set_ivs` | Sets IVs (partial or full) |
-| `boost_evs` | Adds EVs to a stat (respects 255/510 caps) |
-| `teach_move` | Sets move + 15 PP in slot 0–3 |
+### Additional reward types (supported in code; available as custom rewards via `itemRewards.ts`)
+| Type | Effect | Used by |
+|---|---|---|
+| `heal_pokemon` | statusCondition = 0, currentHp = maxHp | Not currently surfaced in UI |
+| `add_experience` | Flat +N EXP (capped at 0x00FFFFFF) | Not currently surfaced in UI |
+| `give_item` | Sets held item to itemId | `ITEM_REWARD_OPTIONS` (Rare Candy, vitamins) |
+| `set_ivs` | Sets IVs (partial or full) | `IV_REWARD_OPTIONS` (set one stat to 31) |
+| `boost_evs` | Adds EVs to a stat (respects 255/510 caps) | `EV_REWARD_OPTIONS` (+50 EVs per stat) |
+| `teach_move` | Sets move + 15 PP in slot 0–3 | Not currently surfaced in UI |
 
 ---
 
@@ -406,9 +417,12 @@ Thin adapter class that implements `IPokemonCryptoService`, delegating to `lib/g
 ### `taskStore` (localStorage key: `'gba-tasks'`)
 ```ts
 tasks: Task[]
-addTask(title, description, priority, recurrence?)  // emits task:created; pushes to Supabase if logged in
+// Task.recurrence: 'none' | 'daily' | 'weekly' | 'repeatable'
+// Task.customReward?: Reward  — overrides priority-based EXP reward when set
+addTask(title, description, priority, recurrence?, customReward?)  // emits task:created; pushes to Supabase if logged in
 bulkAddTasks(rawTasks)                              // validates + upserts batch; pushes to Supabase if logged in
 completeTask(id)                                    // emits task:completed, pools reward; pushes to Supabase
+                                                    // 'repeatable' tasks: reward is given then status instantly resets to 'pending'
 deleteTask(id)                                      // emits task:deleted; deletes from Supabase
 updateTaskPriority(id, newPriority)                 // pushes updated task to Supabase
 resetRecurringTasks()                               // resets daily/weekly tasks; pushes reset tasks to Supabase
@@ -422,7 +436,9 @@ rewardHistory: RewardHistoryEntry[]   // capped at 100 entries
 isClaiming: boolean                    // true while batch claim is in progress
 addPending(reward)                     // called by taskStore; syncs pending pool to Supabase profile
 claimAll()                             // emits 'rewards:claim' with all pending, sets isClaiming=true
-markBatchApplied(rewards, success)     // moves batch from pending → history; clears pending in Supabase profile
+claimSelected(indices: number[])       // emits 'rewards:claim' with only the selected pending rewards by index
+markBatchApplied(rewards, success)     // removes only claimed rewards from pending (first-match strategy for duplicates);
+                                       // syncs remaining pending to Supabase profile; moves claimed → history
 clearHistory()
 hydratePendingRewards(rewards)         // replace pending rewards with cloud data (called by syncBootstrap)
 ```
@@ -447,10 +463,26 @@ hasSeenTutorial: boolean
 mobileControlAlignment: 'default' | 'left' | 'right'
 isTaskBoardOpen: boolean
 isBulkImportOpen: boolean
-activeTab: 'tasks' | 'play'
 isAccountOpen: boolean
-theme: 'dark' | 'light'    // persisted; toggled by NavBar button
-toggleTheme()               // flips dark ↔ light
+isGamepadMapperOpen: boolean        // true while GamepadMapperModal is open; useGamepad skips emulator input when true
+activeTab: 'tasks' | 'play'
+theme: 'dark' | 'light'            // persisted; toggled by NavBar button
+toggleTheme()                       // flips dark ↔ light
+screenVerticalOffset: number        // -40 to +40; translateY applied to canvas screen-wrap in fullscreen; default 0
+setScreenVerticalOffset(n)          // clamps to ±40 automatically
+```
+
+### `gamepadStore` (localStorage key: `'gba-gamepad'`)
+```ts
+// Only `mapping` is persisted — connection state is runtime-only
+isConnected: boolean
+gamepadId: string | null
+mapping: GamepadMapping   // buttonMappings + axisMappings + actionMappings
+setConnected(id)
+setDisconnected()
+setMapping(mapping)       // persisted
+resetMapping()            // resets to DEFAULT_GAMEPAD_MAPPING
+// NOTE: persist uses `merge` migration to backfill actionMappings: [] on old saved data
 ```
 
 ### `emulatorStore` (not persisted)
@@ -459,16 +491,22 @@ status: EmulatorStatus
 romLoaded: boolean
 gameName: string | null
 errorMessage: string | null
-isFastForward: boolean
+gameSpeed: 1 | 2 | 3 | 4 | 5   // emulation speed multiplier; default 1
+setGameSpeed(speed)              // updates store + calls emulatorService.setGameSpeed()
+cycleGameSpeed()                 // 1→2→3→4→5→1
+isTurboA: boolean                // latching turbo on A button
+isTurboB: boolean                // hold-to-turbo on B button
+toggleTurboA() / toggleTurboB()
 isFullscreen: boolean
-volume: number              // 0–100; default 100; calls emulatorService.setVolume() on change
-setVolume(percent)          // mutates store + forwards to emulatorService immediately
-lastSaveSyncTime: number | null   // Unix ms timestamp of last successful push or pull
-isSyncing: boolean                // true while pushSave() or pullSave() is in flight
+setIsFullscreen(isFs)
+volume: number                   // 0–100; default 100; calls emulatorService.setVolume() on change
+setVolume(percent)               // mutates store + forwards to emulatorService immediately
+lastSaveSyncTime: number | null  // Unix ms timestamp of last successful push or pull
+isSyncing: boolean               // true while pushSave() or pullSave() is in flight
 lastSyncStatus: 'success' | 'error' | null  // set after each push/pull; cleared after 3s by SyncStatus
-setSyncStatus(s)                  // called by pushSave/pullSave to signal result to UI
-pushSave()                        // uploads current save via emulatorService.getCurrentSave() + uploadSave()
-pullSave()                        // downloads cloud save + calls writeSaveAndReload (or stageSaveForNextLoad if no ROM)
+setSyncStatus(s)                 // called by pushSave/pullSave to signal result to UI
+pushSave()                       // uploads current save via emulatorService.getCurrentSave() + uploadSave()
+pullSave()                       // downloads cloud save + calls writeSaveAndReload (or stageSaveForNextLoad if no ROM)
 ```
 
 ### `eventBus`
@@ -910,13 +948,95 @@ Tests use synthetic save buffers with R/S-style offsets (game code 0). `detectGa
 138. **`TaskDashboard.tsx` font sizes fixed**: Reward bar icon/title/pct: `0.65–0.75rem` → `0.8rem` each. Board title: `0.6rem` → `0.875rem`; letter-spacing `0.15em` → `0.08em`. Column headers: `0.45rem` → `0.72rem`; `white-space: nowrap` → `normal` so long labels wrap. Empty-state: `0.7rem` → `0.85rem`. Card title: `0.875rem` → `0.9375rem`. Card badge: `0.35rem` → `0.65rem`; padding `2px 5px` → `3px 6px`.
 139. **`Header.tsx` font sizes fixed**: Status text (IDLE label): `0.4rem` → `0.75rem`; letter-spacing `0.1em` → `0.06em`. Desktop board button: `0.5rem` → `0.8rem`.
 
+### Session 25: Repeatable Tasks + Custom Item Rewards
+
+140. **`repeatable` recurrence type** (`task.ts`, `taskStore.ts`, `TaskForm.tsx`, `TaskItem.tsx`, `TaskBoardModal.tsx`): New recurrence option alongside `none`/`daily`/`weekly`. Repeatable tasks give their reward and instantly reset to `pending` — no time check needed. Fast-path in `completeTask`: after pooling the reward, status is immediately set back to `'pending'` and `completedAt`/`lastCompletedAt` are cleared. Supabase CHECK constraint updated to include `'repeatable'` (migration required: drop + re-add constraint). TaskItem renders "🔁 Repeatable" badge.
+
+141. **Custom item rewards** (`src/lib/gen3/itemRewards.ts` new): Defines three arrays of selectable `Reward` objects:
+    - `ITEM_REWARD_OPTIONS` — 7 `give_item` rewards: Rare Candy (68), HP Up (81), Protein (82), Iron (83), Carbos (84), Calcium (85), Zinc (86) — FRLG item IDs
+    - `IV_REWARD_OPTIONS` — 6 `set_ivs` rewards, one per stat set to 31
+    - `EV_REWARD_OPTIONS` — 6 `boost_evs` rewards, +50 EVs per stat
+    - `ALL_REWARD_OPTIONS` — concat of all three; used by `findItemOption(reward)` for display labels
+    - `findItemOption(reward)` — matches by `reward.type` + `JSON.stringify(reward.payload)` for label lookup
+
+142. **`customReward` field on Task** (`task.ts`, `taskStore.ts`): Optional `customReward?: Reward` stored on the task. `completeTask` uses `task.customReward ?? buildReward(task.priority)` — custom reward takes precedence over priority-based EXP.
+
+143. **`TaskForm.tsx` reward selector**: Dropdown to optionally choose a custom item/IV/EV reward instead of the default priority EXP. Selecting an item from `ALL_REWARD_OPTIONS` sets `customReward` on the new task.
+
+### Session 26: Multi-Speed Emulation + Turbo A/B Buttons
+
+144. **Multi-speed emulation** (`emulatorStore.ts`, `emulatorService.ts`, `PlayRoom.tsx`): Replaced binary fast-forward toggle with a 5-speed cycle. `gameSpeed: 1|2|3|4|5` in store; `cycleGameSpeed()` steps 1→2→3→4→5→1. `emulatorService.setGameSpeed(speed)` calls `setFastForwardMultiplier` (or `setFastForwardRatio` / `setCoreSettings` fallbacks). Toolbar button shows `▶ 1×` at normal speed and `⏩ Nx` when accelerated. Speed applied on init and RETRY.
+
+145. **Turbo A button (latch mode)** (`GbaControls.tsx` → `TurboButton` component): Wraps the A button. Tap once → starts firing A every 50ms (`setInterval`). Tap again → stops. Toggle pill shows `TA` (off) or `⚡A` (on, gold glow). Uses `turboLatch` prop — only A uses latching behavior; stopping turbo via the pill toggle also stops the interval via a `useEffect` watching `turboActive`.
+
+146. **Turbo B button (hold mode)** (`GbaControls.tsx` → `TurboButton` component): Wraps the B button. Hold down → fires B every 50ms. Release (pointer up/cancel/unmount) → stops. Toggle pill shows `TB` / `⚡B`. Uses hold-to-fire pattern (no latching). Both A and B use `turboActiveRef` pattern to avoid stale closure — ref is updated every render.
+
+### Session 27: D-pad Thumbstick + Touch Interaction Polish
+
+147. **D-pad thumbstick** (`GbaControls.tsx` → `DPad` component): Replaced 4 individual `ControlButton` instances with a single 120×120px unified capture zone (3×3 CSS grid cross-shape, corners are transparent gaps). `pointerdown` captures the pointer; `pointermove` resolves direction in real time using `atan2` from center offset — sliding thumb from Up → Left transitions input without lifting. 8 sectors (4 cardinal + 4 diagonal, each 45°). 16px dead zone at center fires no input. Diagonal sectors press two buttons simultaneously (e.g. Up+Right). Active cell highlight applied via direct DOM class mutation — no React re-render on move. `DPAD_SIZE = 120`, `DEAD_ZONE = 16` constants at top of component.
+
+148. **Kanban card touch polish** (`globals.css`): `.kanban-card` gets `user-select: none; -webkit-user-select: none; -webkit-touch-callout: none` — prevents text selection highlight and iOS long-press context menu during drag-and-drop.
+
+149. **Input font size floor** (`globals.css`): `.input` uses `font-size: 1rem` (16px). Must stay ≥ 16px — iOS Safari auto-zooms the page on focus when an input has `font-size < 16px`.
+
+### Session 28: Web Gamepad API Integration
+
+150. **`src/types/gamepad.ts`** (new): Defines all gamepad types — `GamepadButtonMapping` (button index → GBA button), `GamepadAxisMapping` (axis + direction → GBA button), `GamepadActionMapping` (button index → AppAction), `GamepadMapping` (name + all three arrays), `AppAction = 'turbo_a' | 'turbo_b' | 'speed_up'`. `DEFAULT_GAMEPAD_MAPPING` uses DualShock-style button indices. `GBA_BUTTONS`, `APP_ACTIONS`, `APP_ACTION_LABELS` exported.
+
+151. **`src/store/gamepadStore.ts`** (new): Persisted Zustand store (`gba-gamepad`). Only `mapping` is persisted (connection state is runtime-only). `merge` migration backfills `actionMappings: []` for users with old persisted data predating the field.
+
+152. **`src/hooks/useGamepad.ts`** (new): RAF polling loop mounted once in `PlayRoom` (PlayRoom is always mounted via `display: none` trick). Each frame: clones gamepad snapshot with deep-copy (`Array.from(gp.buttons).map(b => ({pressed, value}))`), diffs against previous frame for button transitions. GBA buttons are held while pressed (not edge-triggered). App actions (turbo_a/b, speed_up) are edge-triggered — fire once on button-down via `actionDownRef`. Dead zone = 0.3 for axes. Checks `useUiStore.getState().isGamepadMapperOpen` each frame — releases all held buttons and skips input when mapper is open.
+
+153. **`src/components/GamepadMapper/GamepadStatus.tsx`** (new): Toolbar button showing `🎮 PAD ●` (connected) or `🎮 PAD` (disconnected). Click opens `GamepadMapperModal` via `uiStore.setIsGamepadMapperOpen(true)`.
+
+154. **`src/components/GamepadMapper/GamepadMapperModal.tsx`** (new): Button remapping UI. Two sections: **GBA BUTTONS** (assign button index or axis to each GBA button) and **APP ACTIONS** (assign button index to turbo A/B/speed cycle; ✕ to clear). "Listening…" state — press any gamepad button/axis to assign. Uses discriminated union `ListeningTarget: { kind: 'gba'; gba: GbaButton } | { kind: 'action'; action: AppAction } | null`. Sticky footer (RESET DEFAULTS / SAVE) always visible using `gpm-overlay` class with `padding-bottom: 80px` and `align-items: flex-end` on mobile. Three-region flex layout: fixed header, scrollable `gpm-body`, `flex-shrink: 0` footer.
+
+155. **Critical bug — deep clone of GamepadButton** (`GamepadMapperModal.tsx`): `[...gp.buttons]` only shallow-copies live `GamepadButton` references. Both prev and current snapshot frames point to the same live objects, so the diff never detects any transition. Fixed by `cloneSnapshot()`: `Array.from(gp.buttons).map(b => ({ pressed: b.pressed, value: b.value }))`.
+
+156. **Critical bug — game receiving input during remapping** (`useGamepad.ts`): RAF loop kept sending button presses to emulator even with mapper modal open. Fixed by checking `useUiStore.getState().isGamepadMapperOpen` at the top of each poll frame — releases all currently-held buttons, clears `pressedRef` and `actionDownRef`, then returns early without processing input.
+
+### Session 29: GBA Screen Vertical Position Control
+
+157. **`screenVerticalOffset` in `uiStore`** (`uiStore.ts`): New persisted field `screenVerticalOffset: number` (default 0, clamped ±40). `setScreenVerticalOffset(n)` applies clamping automatically. Represents a `translateY` percentage applied to the canvas screen-wrap.
+
+158. **Canvas offset applied** (`EmulatorCanvas.tsx`): Reads `isFullscreen` and `screenVerticalOffset` from stores. When fullscreen and offset ≠ 0, applies `transform: translateY(${offset}%)` as inline style to `.emulator-canvas__screen-wrap`.
+
+159. **`ScreenPositionControls` component** (`src/components/EmulatorView/ScreenPositionControls.tsx` new): Floating ▲ / ◎ / ▼ button strip, right-edge absolute positioned in the fullscreen inner div. Only renders when `isFullscreen && isPortrait && isConnected` (controller connected). NUDGE = 5% per tap; ◎ resets to 0. Auto-fades after 3s via `visible` state + CSS opacity transition (`FADE_DELAY = 3000`). Wakes (becomes visible) automatically when conditions first become active via `useEffect`.
+
+### Session 30: Rebranding + Mobile UI Fixes + Selective Reward Claiming
+
+160. **Rebranded to "Productivity Boy"**: `index.html` title → "Productivity Boy", `apple-mobile-web-app-title` → "Productivity Boy", `public/manifest.webmanifest` name → "Productivity Boy" / short_name → "Prod Boy", `Header.tsx` h1 → "Productivity Boy", `package.json` name → "productivity-boy". localStorage keys unchanged (`gba-*`) to preserve existing user data.
+
+161. **Toolbar overflow fix** (`PlayRoom.tsx`): Added `flex-wrap: wrap` to `.emu-toolbar` so buttons reflow to a second line on narrow viewports instead of overflowing horizontally.
+
+162. **Rotate hint removed** (`PlayRoom.tsx`, previously in `AppLayout.tsx`): Removed the "ROTATE FOR BEST EXPERIENCE" overlay that appeared in fullscreen portrait mode. It blocked touch input even with `pointer-events: none` on some devices and was considered unnecessary UX noise.
+
+163. **Portrait mobile layout — canvas to top** (`PlayRoom.tsx`): On mobile portrait (`max-width: 768px` + `orientation: portrait`), the emulator card uses CSS `order` to push the canvas section to the top of the card and the header/divider below it. `play-room__emulator-inner` gets `order: 1`, header gets `order: 3`, divider gets `order: 4`. No DOM restructuring needed.
+
+164. **Selective reward claiming** (`rewardStore.ts`, `RewardDisplay.tsx`): Users can now choose which pending rewards to claim instead of always claiming all at once. `claimSelected(indices: number[])` emits `rewards:claim` with only the indexed rewards. `markBatchApplied` was updated to remove only the claimed rewards from `pendingRewards` using a first-match splice strategy (important for duplicate rewards). `RewardDisplay` shows a checkbox (▣/▢) per pending reward, SELECT ALL / DESELECT ALL button, scrollable pending list, and button label `CLAIM X / N REWARDS`.
+
+165. **Continuous task creation** (`TaskBoardModal.tsx`): Removed `onSubmitSuccess={() => setIsOpen(false)}` — the Add Quest modal no longer auto-closes after adding a task. Users can add multiple tasks in sequence without reopening the modal.
+
+166. **`font-size: 1rem` on `.input`** (`globals.css`): Enforced globally to prevent iOS Safari auto-zoom on text input focus (Safari zooms in when `font-size < 16px`).
+
+---
+
+## 13a. Supabase Schema Change Log
+
+| Session | Change | Migration SQL needed |
+|---|---|---|
+| 15 | Initial schema (tasks, profiles, saves) | `supabase/schema.sql` |
+| 25 | Added `'repeatable'` to `recurrence` CHECK | `ALTER TABLE public.tasks DROP CONSTRAINT IF EXISTS tasks_recurrence_check; ALTER TABLE public.tasks ADD CONSTRAINT tasks_recurrence_check CHECK (recurrence IN ('none', 'daily', 'weekly', 'repeatable'));` |
+
+> **Warning**: Any new `recurrence` value added to the TypeScript type **must** also be added to the DB CHECK constraint or Supabase will silently reject the push and `hydrateFromCloud` will overwrite localStorage with cloud data (dropping the local task).
+
 ---
 
 ## 14. Next Steps (Suggested)
 
 1. **Explore WASM memory pointer** — future optimization: mGBA WASM exposes the raw C heap. If we could locate the save chip pointer in memory, we could write the 128KB payload directly to RAM without forcing a game restart. This would allow truly seamless background rewards without kicking the player to the title screen.
 
-2. **Re-enable other reward types** — the legacy reward types (heal, items, IVs, EVs, moves) are still fully implemented in the crypto service. They could be surfaced as bonus rewards, achievement unlocks, or selectable options alongside the EXP rewards.
+2. **Expand custom reward UI** — `give_item`, `set_ivs`, and `boost_evs` are now selectable as task rewards via `itemRewards.ts`. The remaining types (`heal_pokemon`, `teach_move`, `add_experience`) could also be surfaced. Consider a richer reward picker UI in `TaskForm`.
 
 3. **PWA enhancements** — add offline fallback page, background sync for task persistence, push notifications for task reminders, and app update prompts when the service worker detects a new version.
 
