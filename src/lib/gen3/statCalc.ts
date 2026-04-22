@@ -117,6 +117,14 @@ export function recalculatePartyStats(pokemon: Pokemon): Pokemon {
   const exp     = pokemon.growth.experience >>> 0;
   const pv      = pokemon.personalityValue >>> 0;
 
+  // Species outside Gen III dex (ROM hack expansions). Stat recalculation
+  // requires accurate base stats — returning the pokemon unchanged is safer
+  // than computing incorrect cached stats from the generic fallback.
+  if (species <= 0 || species > 386) {
+    console.warn('[recalculatePartyStats] Unknown species', species, '— skipping stat recalc');
+    return pokemon;
+  }
+
   const stats = getBaseStats(species);
   const level = levelFromExp(stats.growthRate, exp);
 

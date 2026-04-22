@@ -42,13 +42,20 @@ const PARTY_SECTION_ID     = 1;
 const POKEMON_SIZE         = 100;
 const MAX_PARTY            = 6;
 
-// Section 0, offset 0xAC: game code (u32 LE). 0 = R/S/E, 1 = FR/LG.
+// Section 0, offset 0xAC: game code (u32 LE). 0 = R/S/E, 1 = FR/LG (vanilla).
 const SECTION0_GAME_CODE_OFFSET = 0xAC;
+
+// Section 0, offset 0xF20: CFRU encryptionKey (u32 LE).
+// Vanilla games leave this region as padding (0x00). CFRU/Unbound writes a
+// non-zero key here, letting us distinguish Unbound (FRLG-based) from RS/E
+// without relying on the gameCode field that CFRU repurposed for gcnLinkFlags.
+const SECTION0_CFRU_KEY_OFFSET = 0xF20;
 
 /**
  * Party data offsets differ between game variants:
  *   Ruby/Sapphire/Emerald:  count at 0x0234, data at 0x0238
  *   FireRed/LeafGreen:      count at 0x0034, data at 0x0038
+ *   CFRU/Unbound:           same as FireRed/LeafGreen
  */
 const PARTY_OFFSETS: Record<GameVariant, { count: number; start: number }> = {
   ruby_sapphire:     { count: 0x0234, start: 0x0238 },
@@ -120,13 +127,17 @@ function findSection(sections: SaveSection[], id: number): SaveSection | undefin
 }
 
 /**
- * Detect game variant from Section 0's game code field.
+ * Detect game variant from Section 0.
  *
- * Section 0 at offset 0xAC contains a u32:
- *   0 → Ruby/Sapphire (or Emerald — distinguished by security key location)
+ * Primary check — vanilla game code at offset 0xAC (u32 LE):
  *   1 → FireRed/LeafGreen
+ *   0 → Ruby/Sapphire or Emerald (share party offsets, treated the same)
  *
- * For now we group R/S and Emerald since they share party offsets.
+ * CFRU/Unbound secondary check — offset 0xF20 (u32 LE):
+ *   CFRU repurposes offset 0xAC for gcnLinkFlags (usually 0), making Unbound
+ *   look like RS/E under the primary check. CFRU writes a non-zero
+ *   encryptionKey at 0xF20, which vanilla games leave as zeroed padding.
+ *   When detected, Unbound is treated as firered_leafgreen (same party offsets).
  */
 function detectGameVariant(sections: SaveSection[]): GameVariant {
   const section0 = findSection(sections, 0);
@@ -136,6 +147,16 @@ function detectGameVariant(sections: SaveSection[]): GameVariant {
   const gameCode = view.getUint32(SECTION0_GAME_CODE_OFFSET, true) >>> 0;
 
   if (gameCode === 1) return 'firered_leafgreen';
+
+  // CFRU/Unbound: gameCode is repurposed; detect by non-zero encryptionKey.
+  if (section0.data.byteLength > SECTION0_CFRU_KEY_OFFSET + 3) {
+    const cfruKey = view.getUint32(SECTION0_CFRU_KEY_OFFSET, true) >>> 0;
+    if (cfruKey !== 0) {
+      console.log('[detectGameVariant] CFRU/Unbound detected (encryptionKey=0x' + cfruKey.toString(16) + '), using FRLG offsets');
+      return 'firered_leafgreen';
+    }
+  }
+
   return 'ruby_sapphire';
 }
 

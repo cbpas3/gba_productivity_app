@@ -80,10 +80,20 @@ export function addExperience(pokemon: Pokemon, amount: number): Pokemon {
  * @param percent - Percentage of EXP-to-next-level to grant (e.g. 10, 50, 100).
  */
 export function addExperiencePercent(pokemon: Pokemon, percent: number): Pokemon {
-  const species   = pokemon.growth.species;
+  const species    = pokemon.growth.species;
   const currentExp = pokemon.growth.experience >>> 0;
-  const stats     = getBaseStats(species);
-  const level     = levelFromExp(stats.growthRate, currentExp);
+
+  // Species outside the Gen III dex (ROM hacks like Unbound add 400+ more).
+  // getBaseStats returns a generic fallback for these, which would produce
+  // incorrect growth-rate calculations. Use flat EXP instead so the reward
+  // fires correctly without relying on stats we don't have.
+  if (species <= 0 || species > 386) {
+    console.warn('[addExperiencePercent] Unknown species', species, '— using flat EXP fallback');
+    return addExperience(pokemon, Math.max(1, Math.floor(500 * percent / 100)));
+  }
+
+  const stats = getBaseStats(species);
+  const level = levelFromExp(stats.growthRate, currentExp);
 
   if (level >= 100) return pokemon;
 

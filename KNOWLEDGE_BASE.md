@@ -1,7 +1,7 @@
 # Game Productivity App — Knowledge Base
 
 > **Purpose**: Complete project context for LLM handoff. Covers architecture, Gen III save format, Supabase cloud sync, active bugs, and session history.
-> **Last updated**: Session 30 (gamepad support, screen position, selective rewards, multi-speed, turbo, D-pad thumbstick, rebranding, custom item rewards, repeatable tasks)
+> **Last updated**: Session 31 (Pokemon Unbound / CFRU compatibility: game variant detection fix, unknown species EXP fallback)
 
 ---
 
@@ -699,6 +699,13 @@ There is no auto-upload. All sync is explicit via two buttons in `SyncStatus`.
 - **Root cause**: `quickReload()` respects `restoreAutoSaveStateOnLoad` by default — it resumes from mGBA's `.ss` auto-save snapshot rather than booting the game cold from the title screen.
 - **Fix** (`emulatorService.restart()`): Before calling `quickReload()`, disables `restoreAutoSaveStateOnLoad` via `setCoreSettings` and deletes the `.ss` snapshot file from VFS. Re-enables the setting after reload. Save chip in C heap is preserved throughout (matching real GBA hardware behaviour).
 
+### ✅ Fixed: Pokemon Unbound / CFRU ROM hacks fail on reward claim (Session 31)
+- **Root cause 1 — Wrong game variant detected**: `detectGameVariant()` read a u32 at Section 0 offset `0xAC` and treated value `1` as FireRed/LeafGreen, otherwise RS/E. CFRU (the engine Unbound is built on) repurposed that field for `gcnLinkFlags`. For players who never used a GameCube link cable, `gcnLinkFlags = 0`, so Unbound was detected as RS/E. Party data was then read from offsets `0x0234`/`0x0238` instead of the correct FRLG offsets `0x0034`/`0x0038` — producing garbage party count and garbage Pokemon bytes.
+- **Root cause 2 — Unknown species crash**: Unbound adds 400+ species beyond the Gen III dex (species IDs > 386). `addExperiencePercent` called `getBaseStats(species)` which silently returned a generic neutral-stat fallback for unknown IDs, causing incorrect EXP calculations. `recalculatePartyStats` had the same issue — it would write incorrect cached stats back to the save.
+- **Fix 1** (`saveFileParser.ts`): `detectGameVariant` now uses a two-step check. Step 1: vanilla `gameCode === 1` at offset `0xAC` → FRLG (unchanged). Step 2: if gameCode is 0, read the CFRU `encryptionKey` at Section 0 offset `0xF20`. Vanilla games leave this region as zeroed padding; CFRU writes a non-zero key there. Non-zero → CFRU/Unbound → force FRLG offsets. Zero → RS/E (unchanged). Safe for all vanilla games.
+- **Fix 2** (`rewards.ts`): `addExperiencePercent` now explicitly checks `species <= 0 || species > 386` before calling `getBaseStats`. Unknown species receive flat `500 × percent / 100` EXP so the reward still fires correctly.
+- **Fix 3** (`statCalc.ts`): `recalculatePartyStats` does the same range check and returns the Pokemon unchanged for unknown species, avoiding incorrect cached stat values being written into the save.
+
 ### ⚠️ Known: FireRed first-save incomplete sections
 - FireRed's very first in-game save may not write all 14 sections to the save file. Section ID 1 (party data) can be missing, causing `readPartyPokemon` to return null.
 - **Workaround**: The user must save in-game at least **twice** before rewards will work. The app shows a descriptive error: *"No Pokemon in party slot X. Try saving in-game again — early saves may be incomplete."*
@@ -713,7 +720,13 @@ Tested game: **FireRed** (working as of last session except stat display issue a
 Supported games (all Gen III, 128KB save, same crypto):
 - Pokémon Ruby / Sapphire
 - Pokémon Emerald
-- Pokémon FireRed / LeafGreen ✅ (confirmed working with fix)
+- Pokémon FireRed / LeafGreen ✅ (confirmed working)
+- **Pokemon Unbound** ✅ (CFRU-based ROM hack; detected via `encryptionKey` at Section 0 `0xF20`; species > 386 get flat EXP fallback)
+
+**ROM hack compatibility notes**:
+- CFRU-based hacks (Unbound, others): game variant now correctly detected; EXP rewards work for all species; IV/EV/item rewards work if the Pokemon struct format is unchanged from vanilla FRLG (CFRU preserves this)
+- Non-CFRU hacks with heavily modified save structures may still fail — no general solution without per-hack reverse engineering
+- The section checksum byte-count difference between CFRU and vanilla (CFRU uses variable sizes per section) is not yet addressed; this may cause issues if CFRU validates checksums more strictly than vanilla
 
 **Not supported**: Gen I/II (Game Boy, different format), Gen IV+ (DS, different format).
 
@@ -1018,6 +1031,14 @@ Tests use synthetic save buffers with R/S-style offsets (game code 0). `detectGa
 165. **Continuous task creation** (`TaskBoardModal.tsx`): Removed `onSubmitSuccess={() => setIsOpen(false)}` — the Add Quest modal no longer auto-closes after adding a task. Users can add multiple tasks in sequence without reopening the modal.
 
 166. **`font-size: 1rem` on `.input`** (`globals.css`): Enforced globally to prevent iOS Safari auto-zoom on text input focus (Safari zooms in when `font-size < 16px`).
+
+### Session 31: Pokemon Unbound / CFRU Compatibility
+
+167. **CFRU game variant detection** (`saveFileParser.ts`): `detectGameVariant` repaired for CFRU-based ROM hacks (Pokemon Unbound). CFRU repurposes Section 0 offset `0xAC` (vanilla `gameCode`) for `gcnLinkFlags`, so Unbound saves read as `0` and were misclassified as RS/E — causing party data to be read from the wrong offsets (`0x0234`/`0x0238` instead of `0x0034`/`0x0038`). Fix: added a secondary fingerprint check at Section 0 offset `0xF20` (CFRU's `encryptionKey` field). Vanilla games leave this region zeroed; CFRU writes a non-zero value. Detection order: `gameCode === 1` → FRLG; `cfruKey !== 0` → CFRU/Unbound (force FRLG offsets); otherwise → RS/E. All vanilla games unaffected.
+
+168. **Unknown species EXP fallback** (`rewards.ts`): `addExperiencePercent` now guards `species <= 0 || species > 386` before calling `getBaseStats`. Unbound adds 400+ species beyond the Gen III dex; `getBaseStats` previously returned a silent neutral-stat fallback for these, producing incorrect EXP calculations. Unknown species now receive flat `500 × percent / 100` EXP (e.g. 50 EXP for a low-priority task), ensuring the reward fires without relying on stats we don't have.
+
+169. **Unknown species stat recalc guard** (`statCalc.ts`): `recalculatePartyStats` applies the same `species > 386` range check and returns the Pokemon unchanged for unknown species, preventing incorrect cached stat values (HP, attack, etc.) from being written into the save file.
 
 ---
 
