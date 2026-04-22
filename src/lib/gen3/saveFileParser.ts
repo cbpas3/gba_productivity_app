@@ -27,7 +27,14 @@ import { readPokemon, writePokemon } from './pokemonParser.ts';
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const SECTION_SIZE         = 4096;
-const SECTION_DATA_SIZE    = 3968;
+// Vanilla Gen III sections have 3968 bytes of data followed by 116 bytes of
+// padding before the section metadata at offset 4084.  CFRU (used by Unbound)
+// defines SECTOR_DATA_SIZE = 0xFF0 = 4080, pushing the padding down to 4 bytes.
+// Both layouts keep section metadata at the same offsets (4084–4095), so our
+// OFFSET_* constants are correct for both.  Using 4080 here is safe for vanilla
+// saves because vanilla's extra 112 bytes (3968–4079) are zeroed padding —
+// checksumming them with the section data has no effect on the sum.
+const SECTION_DATA_SIZE    = 4080;
 const SECTIONS_PER_BLOCK   = 14;
 const BLOCK_SIZE           = SECTION_SIZE * SECTIONS_PER_BLOCK; // 57 344
 const TWO_BLOCKS_SIZE      = BLOCK_SIZE * 2;                     // 114 688 (minimum valid size)
@@ -66,13 +73,17 @@ const PARTY_OFFSETS: Record<GameVariant, { count: number; start: number }> = {
 // ─── Section checksum ─────────────────────────────────────────────────────────
 
 /**
- * Calculate the section checksum for a 3968-byte data slice.
+ * Calculate the section checksum for a 4080-byte data slice.
  *
  * Algorithm:
- *   1. Interpret the 3968 bytes as 992 little-endian u32 words.
- *   2. Sum them (no overflow in JS — max sum is 992 × 0xFFFFFFFF < 2^53).
+ *   1. Interpret the 4080 bytes as 1020 little-endian u32 words.
+ *   2. Sum them (no overflow in JS — max sum is 1020 × 0xFFFFFFFF < 2^53).
  *   3. Fold the upper 16 bits into the lower 16 bits once.
  *   4. Mask to u16.
+ *
+ * 4080 bytes = CFRU's SECTOR_DATA_SIZE (0xFF0). Vanilla Gen III sections only
+ * use 3968 of these bytes; the remaining 112 are zeroed, so the result is
+ * identical to computing over 3968 bytes for vanilla saves.
  */
 export function calculateSectionChecksum(sectionData: Uint8Array): number {
   if (sectionData.byteLength !== SECTION_DATA_SIZE) {
@@ -84,7 +95,7 @@ export function calculateSectionChecksum(sectionData: Uint8Array): number {
   const view = new DataView(sectionData.buffer, sectionData.byteOffset, sectionData.byteLength);
   let sum = 0;
 
-  for (let i = 0; i < 992; i++) {
+  for (let i = 0; i < 1020; i++) {
     sum += view.getUint32(i * 4, true) >>> 0;
   }
 

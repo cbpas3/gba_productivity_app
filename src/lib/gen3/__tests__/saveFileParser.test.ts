@@ -12,7 +12,7 @@ import { readPokemon, writePokemon } from '../pokemonParser';
 // ---------------------------------------------------------------------------
 
 const SECTION_SIZE       = 4096;
-const SECTION_DATA_SIZE  = 3968;
+const SECTION_DATA_SIZE  = 4080; // matches CFRU SECTOR_DATA_SIZE; vanilla zeros fill the extra 112 bytes
 const SECTIONS_PER_BLOCK = 14;
 const BLOCK_SIZE         = SECTION_SIZE * SECTIONS_PER_BLOCK; // 57 344
 const SAVE_SIZE          = BLOCK_SIZE * 2;                    // 114 688
@@ -269,14 +269,14 @@ describe('setPartyPokemon', () => {
 });
 
 describe('calculateSectionChecksum', () => {
-  it('returns 0 for all-zero 3968-byte input', () => {
+  it('returns 0 for all-zero 4080-byte input', () => {
     const data = new Uint8Array(SECTION_DATA_SIZE);
     expect(calculateSectionChecksum(data)).toBe(0);
   });
 
   it('throws RangeError for wrong-size input', () => {
-    expect(() => calculateSectionChecksum(new Uint8Array(3967))).toThrow(RangeError);
-    expect(() => calculateSectionChecksum(new Uint8Array(3969))).toThrow(RangeError);
+    expect(() => calculateSectionChecksum(new Uint8Array(4079))).toThrow(RangeError);
+    expect(() => calculateSectionChecksum(new Uint8Array(4081))).toThrow(RangeError);
   });
 
   it('produces a u16 result (0 ≤ result ≤ 0xFFFF)', () => {
