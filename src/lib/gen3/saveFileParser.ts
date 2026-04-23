@@ -102,6 +102,52 @@ export function calculateSectionChecksum(sectionData: Uint8Array): number {
   return (((sum >>> 16) + (sum & 0xffff)) & 0xffff);
 }
 
+/**
+ * Compute a section checksum over an arbitrary number of bytes (must be a
+ * multiple of 4). Used internally to auto-detect the checksum byte count for a
+ * given save.
+ */
+function computeChecksumForBytes(data: Uint8Array, bytes: number): number {
+  const view  = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  let sum = 0;
+  const words = bytes / 4;
+  for (let i = 0; i < words; i++) {
+    sum += view.getUint32(i * 4, true) >>> 0;
+  }
+  return (((sum >>> 16) + (sum & 0xffff)) & 0xffff);
+}
+
+/**
+ * Candidate checksum byte counts, tried in order.
+ * 3968 = vanilla Gen III; 4080 = CFRU/Unbound (SECTOR_DATA_SIZE 0xFF0).
+ * The first candidate that reproduces the stored checksum wins.
+ * When both reproduce the same checksum (bytes 3968-4079 are all zeros,
+ * common in vanilla saves), 4080 is chosen — yielding the same result either
+ * way, so it is always safe.
+ */
+const CHECKSUM_SIZE_CANDIDATES = [4080, 3968] as const;
+
+/**
+ * Detect how many bytes the game checksums for a section by comparing
+ * candidate sizes against the checksum already stored in the save file.
+ *
+ * @param originalData - The full 4080-byte section data BEFORE any modification.
+ * @param storedChecksum - The u16 checksum read from the section metadata.
+ * @returns Byte count to use when recalculating the checksum after modification.
+ */
+function detectSectionChecksumBytes(originalData: Uint8Array, storedChecksum: number): number {
+  for (const bytes of CHECKSUM_SIZE_CANDIDATES) {
+    if (computeChecksumForBytes(originalData, bytes) === storedChecksum) {
+      return bytes;
+    }
+  }
+  console.warn(
+    '[detectSectionChecksumBytes] No candidate matched storedChecksum=0x' +
+    storedChecksum.toString(16) + '; defaulting to', SECTION_DATA_SIZE,
+  );
+  return SECTION_DATA_SIZE;
+}
+
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
 /** Parse a single 4096-byte section at the given byte offset in the full save. */
@@ -316,18 +362,28 @@ export function setPartyPokemon(
   // because parseBlock reads sections in order.
   const sectionBase = blockOffset + section1Index * SECTION_SIZE;
 
+  // Detect how many bytes the GBA game checksums for section 1 by matching
+  // the stored checksum against candidate sizes on the ORIGINAL (unmodified)
+  // section data. This handles both vanilla Gen III (3968 bytes) and
+  // CFRU/Unbound (4080 bytes) without hardcoding the size.
+  const originalSectionData = output.slice(sectionBase, sectionBase + SECTION_DATA_SIZE);
+  const storedChecksum      = saveFile.sections[section1Index].checksum;
+  const checksumBytes       = detectSectionChecksumBytes(originalSectionData, storedChecksum);
+  console.log('[setPartyPokemon] section 1 checksum: stored=0x' + storedChecksum.toString(16) +
+    ', detected byte count=' + checksumBytes);
+
   // Write the serialized Pokemon into the output buffer.
-  const offsets = PARTY_OFFSETS[saveFile.gameVariant];
+  const offsets       = PARTY_OFFSETS[saveFile.gameVariant];
   const serialized    = writePokemon(pokemon);
   const pokemonOffset = sectionBase + offsets.start + slot * POKEMON_SIZE;
-
   output.set(serialized, pokemonOffset);
 
-  // Recalculate and write the section checksum.
-  const newSectionData = output.slice(sectionBase, sectionBase + SECTION_DATA_SIZE);
-  const newChecksum    = calculateSectionChecksum(newSectionData);
+  // Recalculate the checksum using the detected byte count and write it.
+  const newSectionData = output.slice(sectionBase, sectionBase + checksumBytes);
+  const newChecksum    = computeChecksumForBytes(newSectionData, checksumBytes);
   const checksumView   = new DataView(output.buffer, output.byteOffset, output.byteLength);
   checksumView.setUint16(sectionBase + OFFSET_CHECKSUM, newChecksum, true);
+  console.log('[setPartyPokemon] new checksum=0x' + newChecksum.toString(16));
 
   return output;
 }
