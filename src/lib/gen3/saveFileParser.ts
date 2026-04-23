@@ -138,30 +138,63 @@ function findSection(sections: SaveSection[], id: number): SaveSection | undefin
 }
 
 /**
- * Detect game variant from Section 0.
+ * Detect game variant from the active block's sections.
  *
- * Primary check — vanilla game code at offset 0xAC (u32 LE):
- *   1 → FireRed/LeafGreen
- *   0 → Ruby/Sapphire or Emerald (share party offsets, treated the same)
+ * Three checks in priority order:
  *
- * CFRU/Unbound secondary check — offset 0xF20 (u32 LE):
- *   CFRU repurposes offset 0xAC for gcnLinkFlags (usually 0), making Unbound
- *   look like RS/E under the primary check. CFRU writes a non-zero
- *   encryptionKey at 0xF20, which vanilla games leave as zeroed padding.
- *   When detected, Unbound is treated as firered_leafgreen (same party offsets).
+ *  1. Vanilla FR/LG fingerprint — Section 0 gameCode at 0xAC = 1.
+ *     CFRU repurposes this field for gcnLinkFlags (usually 0), so a value of 1
+ *     reliably means a vanilla FR/LG cartridge save.
+ *
+ *  2. Party count heuristic — Section 1 data.
+ *     FRLG/CFRU party count is at offset 0x0034; RSE is at 0x0234.
+ *     A valid party always has 1–6 Pokemon. In practice exactly one of the two
+ *     offsets falls in [1,6] because the other lands in unrelated save data
+ *     (RS/E: bag/coins area; FR/LG: middle of party slot 5's nickname bytes).
+ *     This is the primary Unbound detection path when encryptionKey is 0.
+ *
+ *  3. CFRU encryptionKey fingerprint — Section 0 offset 0xF20.
+ *     CFRU stores a non-zero GCN-link encryption key here; vanilla games leave
+ *     the region as zeroed padding. Catches any CFRU save the heuristic misses.
  */
 function detectGameVariant(sections: SaveSection[]): GameVariant {
   const section0 = findSection(sections, 0);
-  if (!section0) return 'ruby_sapphire';
 
-  const view = new DataView(section0.data.buffer, section0.data.byteOffset, section0.data.byteLength);
-  const gameCode = view.getUint32(SECTION0_GAME_CODE_OFFSET, true) >>> 0;
+  // ── Check 1: vanilla FR/LG game code ────────────────────────────────────────
+  if (section0) {
+    const s0view   = new DataView(section0.data.buffer, section0.data.byteOffset, section0.data.byteLength);
+    const gameCode = s0view.getUint32(SECTION0_GAME_CODE_OFFSET, true) >>> 0;
+    if (gameCode === 1) {
+      console.log('[detectGameVariant] vanilla FR/LG (gameCode=1)');
+      return 'firered_leafgreen';
+    }
+  }
 
-  if (gameCode === 1) return 'firered_leafgreen';
+  // ── Check 2: party count heuristic in Section 1 ──────────────────────────────
+  const section1 = findSection(sections, 1);
+  if (section1 && section1.data.byteLength >= 0x0238) {
+    const s1view   = new DataView(section1.data.buffer, section1.data.byteOffset, section1.data.byteLength);
+    const frlgCount = s1view.getUint32(0x0034, true) >>> 0;
+    const rseCount  = s1view.getUint32(0x0234, true) >>> 0;
+    const frlgValid = frlgCount >= 1 && frlgCount <= MAX_PARTY;
+    const rseValid  = rseCount  >= 1 && rseCount  <= MAX_PARTY;
 
-  // CFRU/Unbound: gameCode is repurposed; detect by non-zero encryptionKey.
-  if (section0.data.byteLength > SECTION0_CFRU_KEY_OFFSET + 3) {
-    const cfruKey = view.getUint32(SECTION0_CFRU_KEY_OFFSET, true) >>> 0;
+    if (frlgValid && !rseValid) {
+      console.log('[detectGameVariant] CFRU/Unbound detected via party count heuristic (FRLG count=' + frlgCount + ')');
+      return 'firered_leafgreen';
+    }
+    if (rseValid && !frlgValid) {
+      console.log('[detectGameVariant] RS/E detected via party count heuristic (RSE count=' + rseCount + ')');
+      return 'ruby_sapphire';
+    }
+    // Both or neither in range — fall through to encryptionKey check.
+    console.log('[detectGameVariant] party count heuristic ambiguous (FRLG=' + frlgCount + ', RSE=' + rseCount + '), trying encryptionKey');
+  }
+
+  // ── Check 3: CFRU encryptionKey fingerprint ─────────────────────────────────
+  if (section0 && section0.data.byteLength > SECTION0_CFRU_KEY_OFFSET + 3) {
+    const s0view  = new DataView(section0.data.buffer, section0.data.byteOffset, section0.data.byteLength);
+    const cfruKey = s0view.getUint32(SECTION0_CFRU_KEY_OFFSET, true) >>> 0;
     if (cfruKey !== 0) {
       console.log('[detectGameVariant] CFRU/Unbound detected (encryptionKey=0x' + cfruKey.toString(16) + '), using FRLG offsets');
       return 'firered_leafgreen';
